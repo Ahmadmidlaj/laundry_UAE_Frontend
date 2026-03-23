@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand Colors */
+  --color-brand-primary: #2563eb;
+  --color-brand-secondary: #7c3aed;
+  --color-brand-success: #10b981;
+  --color-brand-error: #ef4444;
+  --color-brand-warning: #f59e0b;
+  
+  /* Surfaces */
+  --color-surface-50: #f8fafc;
+  --color-surface-100: #f1f5f9;
+  
+  /* Radii */
+  --radius-premium: 1rem;
+  
+  /* Shadows */
+  --shadow-soft: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+}
+
+@layer base {
+  body {
+    @apply antialiased text-slate-900 bg-slate-50;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
