@@ -12,15 +12,15 @@ export const mapOrderResponse = (order: any) => {
     itemCount: order.items?.length || 0,
   };
 };
-// export interface SanitizedOrder {
-//   id: number;
-//   displayId: string;
-//   customerName: string;
-//   address: string;
-//   itemCount: number;
-//   status: string;
-//   rawDate: string;
-// }
+export interface SanitizedOrder {
+  id: number;
+  displayId: string;
+  customerName: string;
+  address: string;
+  itemCount: number;
+  status: string;
+  rawDate: string;
+}
 
 // export const mapOrderResponse = (order: any): SanitizedOrder => {
 //   // Defensive check: if order is null/undefined

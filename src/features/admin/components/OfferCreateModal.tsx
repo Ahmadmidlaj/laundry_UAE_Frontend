@@ -73,8 +73,7 @@ export const OfferCreateModal = ({ isOpen, onClose }: Props) => {
             </button>
           </div>
 
-          <form onSubmit={handleSubmit((data) => mutation.mutate(data))} className="space-y-5">
-            {/* Offer Name */}
+<form onSubmit={handleSubmit((data) => mutation.mutate(data as any))} className="space-y-5">            {/* Offer Name */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Campaign Name</label>
               <div className="relative">

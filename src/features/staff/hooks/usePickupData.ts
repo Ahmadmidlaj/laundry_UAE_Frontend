@@ -19,8 +19,8 @@ export const usePickupData = () => {
 
     const groups: Record<string, { customerName: string; address: string; orders: SanitizedOrder[] }> = {};
 
-    query.data.forEach((order) => {
-      const key = `${order.customerName}-${order.address}`;
+query.data.forEach((order: any) => {    
+    const key = `${order.customerName}-${order.address}`;
       if (!groups[key]) {
         groups[key] = {
           customerName: order.customerName,

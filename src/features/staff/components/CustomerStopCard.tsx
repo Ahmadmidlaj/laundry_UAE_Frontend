@@ -28,8 +28,8 @@ export const CustomerStopCard = ({ stop }: Props) => {
       </div>
 
       <div className="divide-y divide-slate-50">
-        {stop.orders.map((order) => (
-          <div key={order.id} className="p-4 flex justify-between items-center hover:bg-slate-50/50">
+{stop.orders.map((order: any) => (         
+   <div key={order.id} className="p-4 flex justify-between items-center hover:bg-slate-50/50">
             <div>
               <p className="text-sm font-bold text-slate-800">{order.displayId}</p>
               <p className="text-xs text-slate-500">Scheduled: {order.rawDate}</p>

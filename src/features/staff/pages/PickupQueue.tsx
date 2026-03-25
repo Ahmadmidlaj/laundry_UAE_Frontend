@@ -55,7 +55,8 @@ export const PickupQueue = () => {
 
   if (!orders || orders.length === 0) return (
     <div className="max-w-md mx-auto pt-20">
-      <EmptyState icon={PackageCheck} title="Queue Empty" message="No pickups assigned to you." />
+      {/* <EmptyState icon={PackageCheck} title="Queue Empty" message="No pickups assigned to you." /> */}
+    <EmptyState title="Queue Empty" message="No pickups assigned to you." />
     </div>
   );
 
