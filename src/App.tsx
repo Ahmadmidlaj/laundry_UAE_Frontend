@@ -19,23 +19,26 @@ import { AdminDashboard } from "@/features/admin/pages/AdminDashboard";
 import { UserManagement } from "@/features/admin/pages/UserManagement";
 import { OfferManagement } from "@/features/admin/pages/OfferManagement";
 import { PriceManagement } from "@/features/admin/pages/PriceManagement";
+import { ProfilePage } from "./features/user/pages/ProfilePage";
+import { RegisterPage } from "./features/auth/pages/RegisterPage";
+import { ForgotPasswordPage } from "./features/auth/pages/ForgotPasswordPage";
 
 function App() {
   return (
     <Routes>
       {/* PUBLIC ROUTES */}
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<div>Register UI</div>} />
+     <Route path="/register" element={<RegisterPage />} />
+  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+  {/* Add this if you want a dedicated reset page */}
+  {/* <Route path="/reset-password" element={<ResetPasswordPage />} /> */}
 
       {/* AUTHENTICATED ROUTES */}
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
           
           {/* SHARED ROUTES */}
-          <Route
-            path="/profile"
-            element={<div className="p-8 font-black text-2xl text-slate-900">My Profile</div>}
-          />
+         <Route path="/profile" element={<ProfilePage />} />
 
           {/* CUSTOMER ONLY ROUTES */}
           <Route element={<RoleGuard allowedRoles={["CUSTOMER"]} />}>

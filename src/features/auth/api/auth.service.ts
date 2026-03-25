@@ -1,4 +1,5 @@
 import api from '@/api/axios';
+import { type RegisterPayload, type ForgotPasswordResponse, type ResetPasswordPayload } from '../types';
 
 export const authService = {
   login: async (formData: FormData) => {
@@ -11,6 +12,26 @@ export const authService = {
   
   getMe: async () => {
     const response = await api.get('/users/me');
+    return response.data;
+  },
+
+  register: async (data: any) => {
+    const response = await api.post('/auth/register', data);
+    return response.data;
+  },
+
+  forgotPassword: async (mobile: string): Promise<ForgotPasswordResponse> => {
+    const response = await api.post(`/auth/forgot-password?mobile=${mobile}`);
+    return response.data;
+  },
+
+  resetPassword: async (data: ResetPasswordPayload) => {
+    const response = await api.post('/auth/reset-password', null, {
+      params: { 
+        token: data.token, 
+        new_password: data.new_password 
+      }
+    });
     return response.data;
   }
 };
