@@ -12,21 +12,30 @@ export const MainLayout = () => {
 
   return (
     <div className={cn("min-h-screen", isAdmin ? "flex bg-slate-50" : "bg-white")}>
-      {/* 1. ADMIN SIDEBAR (Desktop Only) */}
+      {/* 1. ADMIN SIDEBAR (Visible only on Desktop) */}
       {isAdmin && <AdminSidebar />}
 
       <div className="flex-1 flex flex-col min-h-screen">
-        {/* 2. CUSTOMER/STAFF NAVBAR (Hide for Admin on Desktop) */}
-        {!isAdmin && <Navbar />}
+        {/* 2. NAVBAR: 
+            - Always shows for Customers/Staff.
+            - For Admins: Shows only on mobile/tablet (lg:hidden) to provide the Logout button. 
+        */}
+        <div className={isAdmin ? "lg:hidden" : ""}>
+          <Navbar />
+        </div>
         
         <main className={cn(
           "flex-1 mx-auto w-full",
-          isAdmin ? "p-8 max-w-7xl" : "max-w-7xl px-4 pb-32 pt-6 sm:px-6 lg:px-8"
+          // For Admins: we add pt-6 and pb-32 on mobile to avoid overlapping with Navbars, 
+          // then revert to standard p-8 on desktop.
+          isAdmin 
+            ? "max-w-7xl px-4 pt-6 pb-32 lg:p-8 lg:pb-8" 
+            : "max-w-7xl px-4 pb-32 pt-6 sm:px-6 lg:px-8"
         )}>
           <Outlet />
         </main>
 
-        {/* 3. UNIVERSAL BOTTOM NAV (Shows on mobile for everyone) */}
+        {/* 3. UNIVERSAL BOTTOM NAV */}
         <div className={isAdmin ? "lg:hidden" : ""}>
           <BottomNav />
         </div>
@@ -34,6 +43,42 @@ export const MainLayout = () => {
     </div>
   );
 };
+// // src/layouts/MainLayout.tsx
+// import { Outlet } from 'react-router-dom';
+// import { useAuthStore } from '@/store/useAuthStore';
+// import { AdminSidebar } from '@/components/layout/AdminSidebar';
+// import { Navbar } from '@/components/layout/Navbar';
+// import { BottomNav } from '@/components/layout/BottomNav';
+// import { cn } from '@/utils/cn';
+
+// export const MainLayout = () => {
+//   const user = useAuthStore(state => state.user);
+//   const isAdmin = user?.role === 'ADMIN';
+
+//   return (
+//     <div className={cn("min-h-screen", isAdmin ? "flex bg-slate-50" : "bg-white")}>
+//       {/* 1. ADMIN SIDEBAR (Desktop Only) */}
+//       {isAdmin && <AdminSidebar />}
+
+//       <div className="flex-1 flex flex-col min-h-screen">
+//         {/* 2. CUSTOMER/STAFF NAVBAR (Hide for Admin on Desktop) */}
+//         {!isAdmin && <Navbar />}
+        
+//         <main className={cn(
+//           "flex-1 mx-auto w-full",
+//           isAdmin ? "p-8 max-w-7xl" : "max-w-7xl px-4 pb-32 pt-6 sm:px-6 lg:px-8"
+//         )}>
+//           <Outlet />
+//         </main>
+
+//         {/* 3. UNIVERSAL BOTTOM NAV (Shows on mobile for everyone) */}
+//         <div className={isAdmin ? "lg:hidden" : ""}>
+//           <BottomNav />
+//         </div>
+//       </div>
+//     </div>
+//   );
+// };
 // import { Outlet } from 'react-router-dom';
 // import { Navbar } from '@/components/layout/Navbar';
 // import { BottomNav } from '@/components/layout/BottomNav';
