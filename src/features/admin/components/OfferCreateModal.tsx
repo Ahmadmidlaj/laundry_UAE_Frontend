@@ -34,7 +34,7 @@ interface Props {
 export const OfferCreateModal = ({ isOpen, onClose }: Props) => {
   const queryClient = useQueryClient();
   const { register, handleSubmit, formState: { errors }, reset } = useForm<OfferFormValues>({
-    resolver: zodResolver(offerSchema),
+    resolver: zodResolver(offerSchema) as any,
     defaultValues: {
       start_date: format(new Date(), 'yyyy-MM-dd'),
     }

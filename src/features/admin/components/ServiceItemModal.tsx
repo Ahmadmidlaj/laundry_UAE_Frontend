@@ -24,7 +24,7 @@ export const ServiceItemModal = ({ isOpen, onClose, initialData }: Props) => {
   const queryClient = useQueryClient();
   
   const { register, handleSubmit, formState: { errors }, reset } = useForm<ServiceFormValues>({
-    resolver: zodResolver(serviceSchema),
+    resolver: zodResolver(serviceSchema) as any,
     // This ensures the form resets when the modal opens with new/existing data
     values: initialData ? { name: initialData.name, base_price: initialData.base_price } : { name: '', base_price: 0 }
   });
