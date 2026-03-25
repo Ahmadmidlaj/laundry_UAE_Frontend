@@ -1,5 +1,5 @@
 import api from '@/api/axios';
-import { type RegisterPayload, type ForgotPasswordResponse, type ResetPasswordPayload } from '../types';
+import {  type ForgotPasswordResponse, type ResetPasswordPayload } from '../types';
 
 export const authService = {
   login: async (formData: FormData) => {

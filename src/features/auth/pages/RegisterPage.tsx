@@ -4,7 +4,7 @@ import { useMutation } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { authService } from '../api/auth.service';
 import { toast } from 'sonner';
-import { User, Phone, Mail, Lock, MapPin, ArrowRight, Loader2 } from 'lucide-react';
+import { User, Phone, Mail, Lock, ArrowRight, Loader2 } from 'lucide-react';
 
 export const RegisterPage = () => {
   const navigate = useNavigate();

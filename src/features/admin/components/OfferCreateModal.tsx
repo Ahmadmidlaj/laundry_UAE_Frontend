@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminService } from '../api/admin.service';
-import { X, Calendar, Tag, DollarSign, Info } from 'lucide-react';
+import { X, Tag, DollarSign, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 

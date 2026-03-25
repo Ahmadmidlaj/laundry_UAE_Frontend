@@ -1,11 +1,19 @@
 import api from '@/api/axios';
 
 // --- Types matching your Backend Schemas ---
-export enum UserRole {
-  ADMIN = "ADMIN",
-  EMPLOYEE = "EMPLOYEE",
-  CUSTOMER = "CUSTOMER"
-}
+// export enum UserRole {
+//   ADMIN = "ADMIN",
+//   EMPLOYEE = "EMPLOYEE",
+//   CUSTOMER = "CUSTOMER"
+// }
+
+export const UserRole = {
+  ADMIN: 'ADMIN',
+  CUSTOMER: 'CUSTOMER',
+  EMPLOYEE: 'EMPLOYEE'
+} as const;
+
+export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
 export interface UserResponse {
   id: number;
