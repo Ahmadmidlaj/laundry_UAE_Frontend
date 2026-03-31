@@ -1,17 +1,22 @@
+// src/features/operations/pages/PickupQueue.tsx
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/api/axios';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { toast } from 'sonner';
-import { Plus, Minus, Calendar, AlertCircle, PlusCircle, PackageCheck, MapPin, Loader2 } from 'lucide-react';
-import { getPickupStatus } from '@/utils/formatters';
+import { Plus, Minus, Calendar, AlertCircle, PlusCircle, Clock, MapPin, Loader2 } from 'lucide-react';
+import { getPickupStatus,formatTimeTo12h } from '@/utils/formatters';
 
 export const PickupQueue = () => {
   const queryClient = useQueryClient();
   const [verifyingOrderId, setVerifyingOrderId] = useState<number | null>(null);
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [showItemPicker, setShowItemPicker] = useState(false);
+  
+  // NEW STATES for Delivery Info
+  const [deliveryDate, setDeliveryDate] = useState('');
+  const [deliveryTime, setDeliveryTime] = useState('');
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ['pickups'],
@@ -26,10 +31,16 @@ export const PickupQueue = () => {
   });
 
   const pickupMutation = useMutation({
-    mutationFn: (payload: any) => api.post(`/operations/${payload.id}/pickup`, { items: payload.items }),
+    mutationFn: (payload: any) => api.post(`/operations/${payload.id}/pickup`, { 
+      items: payload.items,
+      expected_delivery_date: deliveryDate, // Sending new fields
+      expected_delivery_time: deliveryTime
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pickups'] });
       setVerifyingOrderId(null);
+      setDeliveryDate('');
+      setDeliveryTime('');
       toast.success("Pickup confirmed!");
     }
   });
@@ -55,8 +66,7 @@ export const PickupQueue = () => {
 
   if (!orders || orders.length === 0) return (
     <div className="max-w-md mx-auto pt-20">
-      {/* <EmptyState icon={PackageCheck} title="Queue Empty" message="No pickups assigned to you." /> */}
-    <EmptyState title="Queue Empty" message="No pickups assigned to you." />
+      <EmptyState title="Queue Empty" message="No pickups assigned to you." />
     </div>
   );
 
@@ -71,12 +81,26 @@ export const PickupQueue = () => {
         return (
           <div key={order.id} className={`bg-white rounded-[2.5rem] border ${isVerifying ? 'border-brand-primary shadow-xl ring-4 ring-brand-primary/5' : 'border-slate-100 shadow-sm'} transition-all duration-300 overflow-hidden`}>
             <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
+              {/* Header: Status + ID */}
+              <div className="flex justify-between items-center mb-4">
                 <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${dateInfo.color}`}>
                   {dateInfo.label === "Overdue" ? <AlertCircle size={12}/> : <Calendar size={12}/>}
                   {dateInfo.label}
                 </span>
                 <p className="font-black text-slate-300 text-[10px] uppercase tracking-widest"># {order.id}</p>
+              </div>
+
+              {/* NEW: Date & Time Display */}
+              <div className="flex gap-4 mb-6 px-1">
+                <div className="flex items-center gap-1.5 text-slate-500 font-bold text-[11px] uppercase tracking-wide">
+                  <Calendar size={14} className="text-brand-primary" />
+                  {new Date(order.pickup_date).toLocaleDateString()}
+                </div>
+              <div className="flex items-center gap-1.5 text-slate-500 font-bold text-[11px] uppercase tracking-wide">
+                  <Clock size={14} className="text-brand-primary" />
+                  {/* WRAP THE TIME HERE */}
+                  {formatTimeTo12h(order.pickup_time)}
+                </div>
               </div>
 
               <div className="flex items-start gap-3 mb-6">
@@ -91,6 +115,7 @@ export const PickupQueue = () => {
 
               {isVerifying ? (
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Verify Items</p>
                   <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 space-y-3">
                     {Object.entries(quantities).map(([id, qty]) => {
                       const itemInfo = masterItems?.find((mi: any) => mi.id === parseInt(id));
@@ -135,15 +160,42 @@ export const PickupQueue = () => {
                     )}
                   </div>
 
+                  {/* NEW: Expected Delivery Selection */}
+                  <div className="space-y-3 pt-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Expected Delivery</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <input 
+                        type="date"
+                        required
+                        value={deliveryDate}
+                        onChange={(e) => setDeliveryDate(e.target.value)}
+                        className="w-full p-4 bg-slate-50 rounded-2xl font-bold text-xs outline-none border border-slate-100"
+                      />
+                      <input 
+                        type="time"
+                        required
+                        value={deliveryTime}
+                        onChange={(e) => setDeliveryTime(e.target.value)}
+                        className="w-full p-4 bg-slate-50 rounded-2xl font-bold text-xs outline-none border border-slate-100"
+                      />
+                    </div>
+                  </div>
+
                   <button 
-                    onClick={() => pickupMutation.mutate({ 
-                      id: order.id, 
-                      items: Object.entries(quantities).map(([k, v]) => ({ item_id: parseInt(k), final_quantity: v }))
-                    })}
+                    onClick={() => {
+                      if (!deliveryDate || !deliveryTime) {
+                        toast.error("Please select expected delivery date and time");
+                        return;
+                      }
+                      pickupMutation.mutate({ 
+                        id: order.id, 
+                        items: Object.entries(quantities).map(([k, v]) => ({ item_id: parseInt(k), final_quantity: v }))
+                      });
+                    }}
                     disabled={pickupMutation.isPending}
-                    className="w-full py-4 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase tracking-widest text-[10px] shadow-lg flex items-center justify-center gap-2"
+                    className="w-full py-4 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase tracking-widest text-[10px] shadow-lg flex items-center justify-center gap-2 mt-4"
                   >
-                    {pickupMutation.isPending ? <Loader2 className="animate-spin" size={16}/> : "Confirm Pickup"}
+                    {pickupMutation.isPending ? <Loader2 className="animate-spin" size={16}/> : "Confirm Pickup & Lock Order"}
                   </button>
                 </div>
               ) : (
@@ -161,6 +213,169 @@ export const PickupQueue = () => {
     </div>
   );
 };
+// import { useState } from 'react';
+// import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+// import api from '@/api/axios';
+// import { CardSkeleton } from '@/components/ui/Skeleton';
+// import { EmptyState } from '@/components/ui/EmptyState';
+// import { toast } from 'sonner';
+// import { Plus, Minus, Calendar, AlertCircle, PlusCircle, PackageCheck, MapPin, Loader2 } from 'lucide-react';
+// import { getPickupStatus } from '@/utils/formatters';
+
+// export const PickupQueue = () => {
+//   const queryClient = useQueryClient();
+//   const [verifyingOrderId, setVerifyingOrderId] = useState<number | null>(null);
+//   const [quantities, setQuantities] = useState<Record<number, number>>({});
+//   const [showItemPicker, setShowItemPicker] = useState(false);
+
+//   const { data: orders, isLoading } = useQuery({
+//     queryKey: ['pickups'],
+//     queryFn: async () => (await api.get('/operations/pickup-queue')).data,
+//     refetchInterval: 15000, 
+//   });
+
+//   const { data: masterItems } = useQuery({
+//     queryKey: ['laundry-items'],
+//     queryFn: async () => (await api.get('/items')).data,
+//     enabled: verifyingOrderId !== null
+//   });
+
+//   const pickupMutation = useMutation({
+//     mutationFn: (payload: any) => api.post(`/operations/${payload.id}/pickup`, { items: payload.items }),
+//     onSuccess: () => {
+//       queryClient.invalidateQueries({ queryKey: ['pickups'] });
+//       setVerifyingOrderId(null);
+//       toast.success("Pickup confirmed!");
+//     }
+//   });
+
+//   const startVerification = (order: any) => {
+//     const initial: Record<number, number> = {};
+//     order.items.forEach((i: any) => initial[i.item_id] = i.estimated_quantity);
+//     setQuantities(initial);
+//     setVerifyingOrderId(order.id);
+//   };
+
+//   const addItemToOrder = (itemId: number) => {
+//     setQuantities(prev => ({ ...prev, [itemId]: (prev[itemId] || 0) + 1 }));
+//     setShowItemPicker(false);
+//   };
+
+//   if (isLoading) return (
+//     <div className="max-w-md mx-auto p-4 space-y-4">
+//       <div className="h-8 w-32 bg-slate-100 animate-pulse rounded-lg mb-4" />
+//       {[1, 2, 3].map(i => <CardSkeleton key={i} />)}
+//     </div>
+//   );
+
+//   if (!orders || orders.length === 0) return (
+//     <div className="max-w-md mx-auto pt-20">
+//       {/* <EmptyState icon={PackageCheck} title="Queue Empty" message="No pickups assigned to you." /> */}
+//     <EmptyState title="Queue Empty" message="No pickups assigned to you." />
+//     </div>
+//   );
+
+//   return (
+//     <div className="max-w-md mx-auto p-4 space-y-6 pb-24">
+//       <h1 className="text-2xl font-black text-slate-900 tracking-tight">Pickup Queue</h1>
+
+//       {orders?.map((order: any) => {
+//         const dateInfo = getPickupStatus(order.pickup_date);
+//         const isVerifying = verifyingOrderId === order.id;
+        
+//         return (
+//           <div key={order.id} className={`bg-white rounded-[2.5rem] border ${isVerifying ? 'border-brand-primary shadow-xl ring-4 ring-brand-primary/5' : 'border-slate-100 shadow-sm'} transition-all duration-300 overflow-hidden`}>
+//             <div className="p-6">
+//               <div className="flex justify-between items-center mb-6">
+//                 <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${dateInfo.color}`}>
+//                   {dateInfo.label === "Overdue" ? <AlertCircle size={12}/> : <Calendar size={12}/>}
+//                   {dateInfo.label}
+//                 </span>
+//                 <p className="font-black text-slate-300 text-[10px] uppercase tracking-widest"># {order.id}</p>
+//               </div>
+
+//               <div className="flex items-start gap-3 mb-6">
+//                 <div className="p-3 bg-slate-50 rounded-2xl text-slate-400"><MapPin size={20} /></div>
+//                 <div>
+//                   <p className="font-black text-slate-900 leading-none mb-1">{order.customer?.full_name}</p>
+//                   <p className="text-xs font-bold text-slate-500 italic">
+//                     {order.customer?.building_name}, {order.customer?.flat_number}
+//                   </p>
+//                 </div>
+//               </div>
+
+//               {isVerifying ? (
+//                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+//                   <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 space-y-3">
+//                     {Object.entries(quantities).map(([id, qty]) => {
+//                       const itemInfo = masterItems?.find((mi: any) => mi.id === parseInt(id));
+//                       return (
+//                         <div key={id} className="flex justify-between items-center bg-white p-3 rounded-2xl border border-slate-100">
+//                           <span className="text-xs font-black text-slate-700">{itemInfo?.name || "Item"}</span>
+//                           <div className="flex items-center gap-3 bg-slate-50 px-2 py-1 rounded-xl border">
+//                             <button 
+//                               className="p-1 hover:text-brand-primary transition-colors"
+//                               onClick={() => setQuantities(p => ({...p, [parseInt(id)]: Math.max(0, p[parseInt(id)] - 1)}))}
+//                             >
+//                               <Minus size={14}/>
+//                             </button>
+//                             <span className="w-4 text-center font-black text-xs">{qty}</span>
+//                             <button 
+//                               className="p-1 hover:text-brand-primary transition-colors"
+//                               onClick={() => setQuantities(p => ({...p, [parseInt(id)]: p[parseInt(id)] + 1}))}
+//                             >
+//                               <Plus size={14}/>
+//                             </button>
+//                           </div>
+//                         </div>
+//                       );
+//                     })}
+
+//                     {showItemPicker ? (
+//                       <select 
+//                         className="w-full p-3 rounded-xl border-2 border-brand-primary/20 bg-white text-xs font-bold outline-none"
+//                         onChange={(e) => addItemToOrder(parseInt(e.target.value))}
+//                         defaultValue=""
+//                       >
+//                         <option value="" disabled>Select item to add...</option>
+//                         {masterItems?.map((mi: any) => <option key={mi.id} value={mi.id}>{mi.name}</option>)}
+//                       </select>
+//                     ) : (
+//                       <button 
+//                         onClick={() => setShowItemPicker(true)}
+//                         className="w-full flex items-center justify-center gap-2 text-brand-primary font-black text-[10px] uppercase tracking-widest py-2 border-2 border-dashed border-brand-primary/10 rounded-xl hover:bg-brand-primary/5"
+//                       >
+//                         <PlusCircle size={14} /> Add missing item
+//                       </button>
+//                     )}
+//                   </div>
+
+//                   <button 
+//                     onClick={() => pickupMutation.mutate({ 
+//                       id: order.id, 
+//                       items: Object.entries(quantities).map(([k, v]) => ({ item_id: parseInt(k), final_quantity: v }))
+//                     })}
+//                     disabled={pickupMutation.isPending}
+//                     className="w-full py-4 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase tracking-widest text-[10px] shadow-lg flex items-center justify-center gap-2"
+//                   >
+//                     {pickupMutation.isPending ? <Loader2 className="animate-spin" size={16}/> : "Confirm Pickup"}
+//                   </button>
+//                 </div>
+//               ) : (
+//                 <button 
+//                   onClick={() => startVerification(order)} 
+//                   className="w-full py-4 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase tracking-widest text-[10px] hover:bg-brand-primary transition-all shadow-xl shadow-slate-200"
+//                 >
+//                   Arrived at Customer
+//                 </button>
+//               )}
+//             </div>
+//           </div>
+//         );
+//       })}
+//     </div>
+//   );
+// };
 // import { useState } from 'react';
 // import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 // import api from '@/api/axios';

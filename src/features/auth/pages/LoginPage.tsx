@@ -104,11 +104,11 @@ export const LoginPage = () => {
               </div>
             )}
 
-            {/* <div className="flex justify-end px-1">
-              <Link to="/forgot-password" size="sm" className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-brand-primary transition-colors">
-                Forgot password?
-              </Link>
-            </div> */}
+            <div className="flex justify-end px-1">
+             <Link to="/forgot-password" className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-brand-primary transition-colors">
+  Forgot password?
+</Link>
+            </div>
           </div>
 
           <button 

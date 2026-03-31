@@ -22,6 +22,9 @@ import { PriceManagement } from "@/features/admin/pages/PriceManagement";
 import { ProfilePage } from "./features/user/pages/ProfilePage";
 import { RegisterPage } from "./features/auth/pages/RegisterPage";
 import { ForgotPasswordPage } from "./features/auth/pages/ForgotPasswordPage";
+import { OrderManagement } from "./features/admin/pages/OrderManagement";
+import { ReportsPage } from "./features/admin/pages/ReportsPage";
+
 
 function App() {
   return (
@@ -68,8 +71,9 @@ function App() {
             
             <Route
               path="/admin/reports"
-              element={<div className="p-8 font-black text-slate-400">Advanced Analytics Coming Soon...</div>}
+              element={<ReportsPage/>}
             />
+            <Route path="/admin/orders" element={<OrderManagement />} />
           </Route>
 
         </Route>

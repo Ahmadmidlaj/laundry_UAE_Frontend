@@ -94,8 +94,23 @@ export const adminService = {
     return response.data;
   },
   
-  /** Toggle item availability (Optional but professional) */
-  deleteItem: async (id: number): Promise<void> => {
-    await api.delete(`/items/${id}`);
+deleteItem: async (id: number): Promise<void> => {
+  await api.delete(`/items/${id}`);
+},
+
+/** Admin-only: Fetch ALL orders across the system */
+  getAllOrders: async (): Promise<any[]> => 
+    (await api.get('/orders/all')).data, // <-- FIXED: Now points to /orders/all
+
+  /** God-Mode: Override any order detail */
+  adminUpdateOrder: async (id: number, data: any) => 
+    (await api.patch(`/orders/${id}/admin`, data)).data,
+
+/** New Analytics Endpoint */
+getAnalytics: async () => 
+  (await api.get('/reports/admin/analytics')).data,
+
   }
-};
+
+ 
+;

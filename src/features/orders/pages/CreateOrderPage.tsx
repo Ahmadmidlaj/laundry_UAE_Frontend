@@ -18,6 +18,21 @@ export const CreateOrderPage = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [finalSavings, setFinalSavings] = useState(0);
 
+ const minPickupTime = useMemo(() => {
+  const now = new Date();
+  now.setHours(now.getHours() + 1); // Add the 1-hour buffer
+  
+  // Format to: YYYY-MM-DDTHH:mm (Required by datetime-local)
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}, []);
+
+
   const { data: items } = useQuery({
     queryKey: ['laundryItems'],
     queryFn: ordersService.getItems,
@@ -63,6 +78,16 @@ export const CreateOrderPage = () => {
     e.preventDefault();
     if (subtotal === 0) return toast.error('Add at least one item');
     if (!pickupDate) return toast.error('Please select a pickup schedule');
+
+    const selectedDateTime = new Date(pickupDate);
+    const now = new Date();
+    
+    // Calculate the difference in minutes
+    const diffInMinutes = (selectedDateTime.getTime() - now.getTime()) / (1000 * 60);
+
+    if (diffInMinutes < 60) {
+      return toast.error("Pickup time must be at least 1 hour from now.");
+    }
 
     const [datePart, timePart] = pickupDate.split('T');
     const payload: OrderPayload = {
@@ -130,8 +155,16 @@ export const CreateOrderPage = () => {
           <input 
             type="datetime-local" 
             value={pickupDate}
-            min={new Date().toISOString().slice(0, 16)} 
-            onChange={(e) => setPickupDate(e.target.value)}
+            // min={new Date().toISOString().slice(0, 16)} 
+            min={minPickupTime}
+            // onChange={(e) => setPickupDate(e.target.value)}
+            onChange={(e) => {
+    if (e.target.value < minPickupTime) {
+      toast.error("Pickup must be at least 1 hour from now");
+      return;
+    }
+    setPickupDate(e.target.value);
+  }}
             className={`w-full p-5 bg-white border border-slate-100 rounded-[1.5rem] font-bold focus:ring-2 focus:ring-brand-primary outline-none transition-all shadow-sm ${
               pickupDate ? "text-slate-900" : "text-slate-400"
             }`}
