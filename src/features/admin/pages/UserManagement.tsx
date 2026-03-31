@@ -105,7 +105,7 @@ export const UserManagement = () => {
                     >
                       <Key size={18} />
                     </button>
-                    <button 
+                    {/* <button 
                       onClick={() => updateMutation.mutate({ id: user.id, data: { is_active: !user.is_active } })}
                       className={cn(
                         "p-2 rounded-xl transition-all",
@@ -113,7 +113,7 @@ export const UserManagement = () => {
                       )}
                     >
                       {user.is_active ? <UserCheck size={18} /> : <UserMinus size={18} />}
-                    </button>
+                    </button> */}
                   </td>
                 </tr>
               ))}
