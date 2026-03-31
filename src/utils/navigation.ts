@@ -1,4 +1,8 @@
-import { Home, ClipboardList, User, LayoutDashboard, Truck, Package, Tag, Users } from 'lucide-react';
+// src/utils/navigation.ts
+import { 
+  Home, ClipboardList, User, LayoutDashboard, 
+  Truck, Package, Tag, Users, BarChart3, ListOrdered 
+} from 'lucide-react';
 
 type Role = 'CUSTOMER' | 'ADMIN' | 'EMPLOYEE' | undefined;
 
@@ -6,7 +10,9 @@ export const getNavItems = (role: Role) => {
   switch (role) {
     case 'ADMIN':
       return [
-        { label: 'Dashboard', path: '/admin', icon: LayoutDashboard },
+        { label: 'Reports', path: '/admin', icon: BarChart3 }, // Main Dashboard
+        { label: 'Orders', path: '/admin/orders', icon: ListOrdered },
+        { label: 'Items', path: '/admin/items', icon: Package },
         { label: 'Users', path: '/admin/users', icon: Users },
         { label: 'Offers', path: '/admin/offers', icon: Tag },
         { label: 'Profile', path: '/profile', icon: User },
