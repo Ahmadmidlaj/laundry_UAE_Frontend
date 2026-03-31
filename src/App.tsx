@@ -24,6 +24,7 @@ import { RegisterPage } from "./features/auth/pages/RegisterPage";
 import { ForgotPasswordPage } from "./features/auth/pages/ForgotPasswordPage";
 import { OrderManagement } from "./features/admin/pages/OrderManagement";
 import { ReportsPage } from "./features/admin/pages/ReportsPage";
+import { ResetPasswordPage } from "./features/auth/pages/ResetPasswordPage";
 
 
 function App() {
@@ -34,7 +35,7 @@ function App() {
      <Route path="/register" element={<RegisterPage />} />
   <Route path="/forgot-password" element={<ForgotPasswordPage />} />
   {/* Add this if you want a dedicated reset page */}
-  {/* <Route path="/reset-password" element={<ResetPasswordPage />} /> */}
+  <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       {/* AUTHENTICATED ROUTES */}
       <Route element={<ProtectedRoute />}>
