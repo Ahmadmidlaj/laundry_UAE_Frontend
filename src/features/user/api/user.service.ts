@@ -6,6 +6,7 @@ export interface UserUpdatePayload {
   email?: string;
   flat_number?: string;
   building_name?: string;
+  password?: string;
   // role is excluded here because the backend guards it
 }
 
