@@ -20,7 +20,8 @@ export const getNavItems = (role: Role) => {
   switch (role) {
     case "ADMIN":
       return [
-        { label: "Reports", path: "/admin", icon: BarChart3 },
+        { label: "Dashboard", path: "/admin", icon: LayoutDashboard },
+        { label: "Reports", path: "/admin/reports", icon: BarChart3 },
         { label: "Orders", path: "/admin/orders", icon: ListOrdered },
         { label: "Items", path: "/admin/items", icon: Package },
         { label: "Users", path: "/admin/users", icon: Users },
