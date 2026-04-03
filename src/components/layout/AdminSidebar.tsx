@@ -1,6 +1,6 @@
 // src/components/admin/AdminSidebar.tsx
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, TicketPercent, Shirt, BarChart3, LogOut, PackageSearch } from 'lucide-react';
+import { LayoutDashboard, Users, TicketPercent, Shirt, BarChart3, LogOut, PackageSearch, Building2, Wallet,Settings } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { cn } from '@/utils/cn';
 
@@ -11,6 +11,9 @@ const ADMIN_NAV = [
   { label: 'Offers', icon: TicketPercent, path: '/admin/offers' },
   { label: 'Users', icon: Users, path: '/admin/users' },
   { label: 'Reports', icon: BarChart3, path: '/admin/reports' }, // DEDICATED REPORTS LINK
+  { label: 'Locations', icon: Building2, path: '/admin/buildings' }, // <-- NEW
+  { label: 'Expenses', icon: Wallet, path: '/admin/expenses' },
+  { label: 'Settings', icon: Settings, path: '/admin/settings' },
 ];
 
 export const AdminSidebar = () => {

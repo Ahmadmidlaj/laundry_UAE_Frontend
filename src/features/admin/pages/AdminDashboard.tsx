@@ -8,7 +8,7 @@ import { Link } from 'react-router-dom';
 export const AdminDashboard = () => {
   const { data: stats, isLoading } = useQuery({
     queryKey: ['adminDashboard'],
-    queryFn: adminService.getDashboardStats,
+   queryFn: () => adminService.getDashboardStats(),
     refetchInterval: 30000, // Refresh every 30s
   });
 

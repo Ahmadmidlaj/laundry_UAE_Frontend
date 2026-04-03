@@ -35,7 +35,7 @@ export const ForgotPasswordPage = () => {
           </a>
           
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-6">
-            Average response time: &lt; 5 minutes
+            Average response time: &lt; 1-8 Hours
           </p>
         </div>
 

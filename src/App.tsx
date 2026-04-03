@@ -25,6 +25,9 @@ import { ForgotPasswordPage } from "./features/auth/pages/ForgotPasswordPage";
 import { OrderManagement } from "./features/admin/pages/OrderManagement";
 import { ReportsPage } from "./features/admin/pages/ReportsPage";
 import { ResetPasswordPage } from "./features/auth/pages/ResetPasswordPage";
+import { BuildingManagement } from "./features/admin/pages/BuildingManagement";
+import { ExpenseManagement } from "./features/admin/pages/ExpenseManagement";
+import { SystemSettings } from "./features/admin/pages/SystemSettings";
 
 
 function App() {
@@ -75,6 +78,9 @@ function App() {
               element={<ReportsPage/>}
             />
             <Route path="/admin/orders" element={<OrderManagement />} />
+            <Route path="/admin/buildings" element={<BuildingManagement />} />
+            <Route path="/admin/expenses" element={<ExpenseManagement />} />
+            <Route path="/admin/settings" element={<SystemSettings />} />
           </Route>
 
         </Route>

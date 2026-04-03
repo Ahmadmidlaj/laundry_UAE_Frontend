@@ -11,6 +11,7 @@ export interface OrderPayload {
   pickup_time: string;    // Backend: String column
   items: Array<{ item_id: number; estimated_quantity: number }>;
   notes?: string;         // Added since it's in your model
+  credits_to_use?: number;
 }
 export const ordersService = {
   // Get all items to display in the booking form

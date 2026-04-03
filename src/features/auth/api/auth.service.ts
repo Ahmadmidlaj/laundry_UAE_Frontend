@@ -34,4 +34,10 @@ export const authService = {
     });
     return response.data;
   }
+  
+};
+
+export const getPublicBuildings = async () => {
+  const response = await api.get('/buildings');
+  return response.data;
 };

@@ -1,19 +1,12 @@
 // src/features/auth/pages/RegisterPage.tsx
 import { useForm } from 'react-hook-form';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { authService } from '../api/auth.service';
+import { authService, getPublicBuildings } from '../api/auth.service';
 import { toast } from 'sonner';
-import { User, Phone, Mail, Lock, ArrowRight, Loader2, Building2, Home, CheckCircle2, Circle } from 'lucide-react';
+import { User, Phone, Lock, ArrowRight, Building2, Home, CheckCircle2, Circle, AlertCircle, Gift } from 'lucide-react'; // <-- Added Gift icon
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from "zod";
-
-const BUILDING_DATA: Record<string, string[]> = {
-  "Al Nahda Tower": ["101", "102", "201", "202", "301"],
-  "Silicon Oasis - Gate 1": ["A-12", "A-13", "B-01", "B-02"],
-  "Marina Heights": ["1201", "1202", "1405"],
-  "Business Bay Residences": ["601", "602", "705"],
-};
 
 const registerSchema = z.object({
   full_name: z.string().min(2, "Name is required"),
@@ -21,11 +14,43 @@ const registerSchema = z.object({
   email: z.string().email().optional().or(z.literal('')),
   building_name: z.string().min(1, "Please select a building"),
   other_building: z.string().optional(),
-  flat_number: z.string().min(1, "Flat number is required"),
+  flat_number: z.string().min(1, "Please select or enter a flat number"),
   password: z.string().regex(/^\d{4,}$/, "Must be at least 4 digits (numbers only)"),
+  referral_code: z.string().optional(), // <-- NEW
+}).refine((data) => {
+  if (data.building_name === 'Other') {
+    return !!data.other_building && data.other_building.trim().length > 0;
+  }
+  return true;
+}, {
+  message: "Please specify your building name",
+  path: ["other_building"], 
 });
 
 type RegisterForm = z.infer<typeof registerSchema>;
+
+// ... (Keep your LaundryLoader component exactly the same) ...
+const LaundryLoader = () => (
+  <div className="flex flex-col items-center justify-center space-y-8 py-12 animate-in fade-in zoom-in-95 duration-500">
+    <div className="relative w-32 h-32 bg-white rounded-[2rem] border-[6px] border-slate-100 shadow-2xl flex flex-col items-center justify-end pb-4 overflow-hidden">
+      <div className="absolute top-0 w-full h-8 border-b-[6px] border-slate-100 flex items-center justify-end px-3 gap-1.5 bg-slate-50">
+         <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+         <div className="w-2 h-2 rounded-full bg-slate-200"></div>
+      </div>
+      <div className="w-16 h-16 rounded-full border-[6px] border-slate-100 relative flex items-center justify-center overflow-hidden mt-6 bg-slate-50">
+        <div className="absolute w-20 h-20 bg-brand-primary/10 rounded-full animate-spin"></div>
+        <div className="absolute w-12 h-12 bg-blue-400/40 rounded-[40%] animate-[spin_3s_linear_infinite]"></div>
+        <div className="absolute w-14 h-14 bg-cyan-300/40 rounded-[35%] animate-[spin_2s_linear_infinite_reverse]"></div>
+      </div>
+    </div>
+    <div className="text-center space-y-2">
+      <h3 className="text-xl font-black text-slate-900 tracking-tight">Waking up the servers...</h3>
+      <p className="text-xs font-bold text-slate-400 max-w-[250px] mx-auto leading-relaxed">
+        We are spinning up the servers. This usually takes about <span className="text-brand-primary">30-40 seconds</span> on the first run.
+      </p>
+    </div>
+  </div>
+);
 
 export const RegisterPage = () => {
   const navigate = useNavigate();
@@ -33,9 +58,16 @@ export const RegisterPage = () => {
     resolver: zodResolver(registerSchema)
   });
 
-  const selectedBuilding = watch('building_name');
+  const { data: buildings = [], isLoading: isBuildingsLoading } = useQuery({
+    queryKey: ['publicBuildings'],
+    queryFn: getPublicBuildings,
+  });
+
+  const selectedBuildingName = watch('building_name');
   const passwordValue = watch('password') || '';
-  const availableFlats = BUILDING_DATA[selectedBuilding] || [];
+
+  const selectedBuildingObj = buildings.find((b: any) => b.name === selectedBuildingName);
+  const availableFlats = selectedBuildingObj ? selectedBuildingObj.flats : [];
 
   const mutation = useMutation({
     mutationFn: (data: RegisterForm) => {
@@ -44,6 +76,7 @@ export const RegisterPage = () => {
         ...data,
         building_name: finalBuilding,
         email: data.email === "" ? null : data.email,
+        referral_code: data.referral_code?.trim() || null, // <-- Pass safely to backend
       });
     },
     onSuccess: () => {
@@ -61,107 +94,146 @@ export const RegisterPage = () => {
           <p className="mt-2 text-slate-500 font-medium">Professional care for your favorites.</p>
         </div>
 
-        <form onSubmit={handleSubmit((data) => mutation.mutate(data))} className="space-y-4">
-          <div className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/60 border border-slate-100 space-y-5">
-            
-            {/* Standard Inputs */}
-            <div className="space-y-4">
-               <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input {...register('full_name')} placeholder="Full Name" className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none" />
-              </div>
-              <div className="relative">
-                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input {...register('mobile')} placeholder="Mobile Number" className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none" />
-              </div>
-            </div>
-
-            <hr className="border-slate-50" />
-
-            {/* Dynamic Building/Flat Logic */}
-            <div className="space-y-3">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Address Details</p>
+        {mutation.isPending ? (
+          <LaundryLoader />
+        ) : (
+          <form onSubmit={handleSubmit((data) => mutation.mutate(data))} className="space-y-4 animate-in fade-in duration-300">
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/60 border border-slate-100 space-y-5">
               
-              <div className="relative">
-                <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
-                <select {...register('building_name')} className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none appearance-none">
-                  <option value="">Select Building</option>
-                  {Object.keys(BUILDING_DATA).map(b => <option key={b} value={b}>{b}</option>)}
-                  <option value="Other">Other Building...</option>
-                </select>
+              {/* Standard Inputs */}
+              <div className="space-y-4">
+                 <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input {...register('full_name')} placeholder="Full Name" className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none" />
+                </div>
+                <div className="relative">
+                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input {...register('mobile')} placeholder="Mobile Number" className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none" />
+                </div>
               </div>
 
-              {selectedBuilding === 'Other' && (
-                <input {...register('other_building')} placeholder="Enter Building Name" className="w-full px-5 py-4 bg-white border-2 border-slate-100 rounded-2xl font-bold text-slate-900 animate-in fade-in slide-in-from-top-2 outline-none" />
-              )}
+              <hr className="border-slate-50" />
 
-              <div className="relative">
-                <Home className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
-                {selectedBuilding && selectedBuilding !== 'Other' ? (
-                  <select {...register('flat_number')} className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none appearance-none">
-                    <option value="">Select Flat Number</option>
-                    {availableFlats.map(f => <option key={f} value={f}>{f}</option>)}
+              {/* Dynamic Building/Flat Logic */}
+              <div className="space-y-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Address Details</p>
+                
+                <div className="relative">
+                  <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                  <select 
+                    {...register('building_name')} 
+                    disabled={isBuildingsLoading}
+                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none appearance-none disabled:opacity-50"
+                  >
+                    <option value="">{isBuildingsLoading ? "Loading buildings..." : "Select Building"}</option>
+                    {buildings.map((b: any) => (
+                      <option key={b.id} value={b.name}>{b.name}</option>
+                    ))}
+                    <option value="Other">Other Building...</option>
                   </select>
-                ) : (
-                  <input {...register('flat_number')} placeholder="Flat / Villa Number" className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none" />
+                </div>
+
+                {selectedBuildingName === 'Other' && (
+                  <div className="animate-in fade-in slide-in-from-top-2 duration-300 space-y-1">
+                    <input 
+                      {...register('other_building')} 
+                      placeholder="Enter Building Name" 
+                      className={`w-full px-5 py-4 bg-white border-2 rounded-2xl font-bold text-slate-900 outline-none transition-all ${errors.other_building ? 'border-red-500 focus:ring-red-500' : 'border-slate-100 focus:ring-brand-primary'}`} 
+                    />
+                    {errors.other_building && (
+                      <p className="text-[10px] font-bold text-red-500 flex items-center gap-1 ml-1 uppercase tracking-widest">
+                        <AlertCircle size={10} /> {errors.other_building.message}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* FLAT NUMBER INPUT */}
+                {selectedBuildingName && (
+                  <div className="relative animate-in fade-in slide-in-from-top-2 duration-300">
+                    <Home className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                    
+                    {selectedBuildingName !== 'Other' && availableFlats.length > 0 ? (
+                      <select {...register('flat_number')} className={`w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 outline-none appearance-none ${errors.flat_number ? 'ring-2 ring-red-500' : 'focus:ring-2 focus:ring-brand-primary'}`}>
+                        <option value="">Select Flat Number</option>
+                        {availableFlats.map((f: string) => <option key={f} value={f}>{f}</option>)}
+                      </select>
+                    ) : (
+                      <input {...register('flat_number')} placeholder="Flat / Villa Number" className={`w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 outline-none ${errors.flat_number ? 'ring-2 ring-red-500' : 'focus:ring-2 focus:ring-brand-primary'}`} />
+                    )}
+
+                    {errors.flat_number && (
+                      <p className="text-[10px] font-bold text-red-500 flex items-center gap-1 ml-1 mt-1.5 uppercase tracking-widest">
+                        <AlertCircle size={10} /> {errors.flat_number.message}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
-            </div>
 
-            <hr className="border-slate-50" />
+              <hr className="border-slate-50" />
 
-            {/* Password with Visual Requirements */}
-            <div className="space-y-3">
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                  {...register('password')} 
-                  type="password" 
-                  inputMode="numeric"
-                  placeholder="Set 4-Digit PIN" 
-                  className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none" 
-                />
-              </div>
-              <div className="flex gap-4 px-2">
-                <div className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-tight transition-colors ${passwordValue.length >= 4 ? 'text-emerald-500' : 'text-slate-300'}`}>
-                  {passwordValue.length >= 4 ? <CheckCircle2 size={12}/> : <Circle size={12}/>} 4+ Digits
-                </div>
-                <div className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-tight transition-colors ${/^\d+$/.test(passwordValue) && passwordValue !== '' ? 'text-emerald-500' : 'text-slate-300'}`}>
-                  {/^\d+$/.test(passwordValue) && passwordValue !== '' ? <CheckCircle2 size={12}/> : <Circle size={12}/>} Numbers Only
+              {/* NEW: Optional Referral Section */}
+              <div className="space-y-3">
+                <div className="relative group">
+                  <Gift className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-primary transition-colors" size={18} />
+                  <input 
+                    {...register('referral_code')} 
+                    placeholder="Referral Code (Optional)" 
+                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 uppercase focus:ring-2 focus:ring-brand-primary outline-none transition-all" 
+                  />
                 </div>
               </div>
-            </div>
-          </div>
 
-          <button disabled={mutation.isPending} className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black uppercase tracking-widest text-xs hover:bg-brand-primary transition-all shadow-xl flex items-center justify-center gap-3 disabled:opacity-70">
-            {mutation.isPending ? <Loader2 className="animate-spin" size={18} /> : <>Create Account <ArrowRight size={16} /></>}
-          </button>
-        </form>
+              <hr className="border-slate-50" />
+
+              {/* Password */}
+              <div className="space-y-3">
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input 
+                    {...register('password')} 
+                    type="password" 
+                    inputMode="numeric"
+                    placeholder="Set 4-Digit PIN" 
+                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none" 
+                  />
+                </div>
+                <div className="flex gap-4 px-2">
+                  <div className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-tight transition-colors ${passwordValue.length >= 4 ? 'text-emerald-500' : 'text-slate-300'}`}>
+                    {passwordValue.length >= 4 ? <CheckCircle2 size={12}/> : <Circle size={12}/>} 4+ Digits
+                  </div>
+                  <div className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-tight transition-colors ${/^\d+$/.test(passwordValue) && passwordValue !== '' ? 'text-emerald-500' : 'text-slate-300'}`}>
+                    {/^\d+$/.test(passwordValue) && passwordValue !== '' ? <CheckCircle2 size={12}/> : <Circle size={12}/>} Numbers Only
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button disabled={mutation.isPending} className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black uppercase tracking-widest text-xs hover:bg-brand-primary transition-all shadow-xl flex items-center justify-center gap-3 disabled:opacity-70 active:scale-95">
+              Create Account <ArrowRight size={16} />
+            </button>
+          </form>
+        )}
         
-        <p className="text-center text-slate-500 font-bold text-sm">
-          Already have an account? <Link to="/login" className="text-brand-primary underline">Login here</Link>
-        </p>
+        {!mutation.isPending && (
+          <p className="text-center text-slate-500 font-bold text-sm animate-in fade-in">
+            Already have an account? <Link to="/login" className="text-brand-primary underline">Login here</Link>
+          </p>
+        )}
       </div>
     </div>
   );
 };
 // // src/features/auth/pages/RegisterPage.tsx
 // import { useForm } from 'react-hook-form';
-// import { useMutation } from '@tanstack/react-query';
+// import { useMutation, useQuery } from '@tanstack/react-query';
 // import { Link, useNavigate } from 'react-router-dom';
-// import { authService } from '../api/auth.service';
+// import { authService, getPublicBuildings } from '../api/auth.service';
 // import { toast } from 'sonner';
-// import { User, Phone, Mail, Lock, ArrowRight, Loader2, Building2, Home } from 'lucide-react';
+// import { User, Phone, Lock, ArrowRight, Building2, Home, CheckCircle2, Circle, AlertCircle } from 'lucide-react';
 // import { zodResolver } from '@hookform/resolvers/zod';
 // import { z } from "zod";
-
-// const BUILDING_DATA: Record<string, string[]> = {
-//   "Al Nahda Tower": ["101", "102", "201", "202", "301"],
-//   "Silicon Oasis - Gate 1": ["A-12", "A-13", "B-01", "B-02"],
-//   "Marina Heights": ["1201", "1202", "1405"],
-//   "Business Bay Residences": ["601", "602", "705"],
-// };
-
 
 // const registerSchema = z.object({
 //   full_name: z.string().min(2, "Name is required"),
@@ -169,50 +241,77 @@ export const RegisterPage = () => {
 //   email: z.string().email().optional().or(z.literal('')),
 //   building_name: z.string().min(1, "Please select a building"),
 //   other_building: z.string().optional(),
-//   flat_number: z.string().min(1, "Flat number is required"),
-//   password: z.string().regex(/^\d{4,}$/, "Password must be at least 4 digits (numbers only)"),
+//   flat_number: z.string().min(1, "Please select or enter a flat number"), // Custom error message
+//   password: z.string().regex(/^\d{4,}$/, "Must be at least 4 digits (numbers only)"),
+// }).refine((data) => {
+//   if (data.building_name === 'Other') {
+//     return !!data.other_building && data.other_building.trim().length > 0;
+//   }
+//   return true;
+// }, {
+//   message: "Please specify your building name",
+//   path: ["other_building"], 
 // });
 
 // type RegisterForm = z.infer<typeof registerSchema>;
 
+// // Custom CSS Washing Machine Loader
+// const LaundryLoader = () => (
+//   <div className="flex flex-col items-center justify-center space-y-8 py-12 animate-in fade-in zoom-in-95 duration-500">
+//     <div className="relative w-32 h-32 bg-white rounded-[2rem] border-[6px] border-slate-100 shadow-2xl flex flex-col items-center justify-end pb-4 overflow-hidden">
+//       {/* Top panel */}
+//       <div className="absolute top-0 w-full h-8 border-b-[6px] border-slate-100 flex items-center justify-end px-3 gap-1.5 bg-slate-50">
+//          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+//          <div className="w-2 h-2 rounded-full bg-slate-200"></div>
+//       </div>
+//       {/* Drum */}
+//       <div className="w-16 h-16 rounded-full border-[6px] border-slate-100 relative flex items-center justify-center overflow-hidden mt-6 bg-slate-50">
+//         {/* Water/Clothes spinning */}
+//         <div className="absolute w-20 h-20 bg-brand-primary/10 rounded-full animate-spin"></div>
+//         <div className="absolute w-12 h-12 bg-blue-400/40 rounded-[40%] animate-[spin_3s_linear_infinite]"></div>
+//         <div className="absolute w-14 h-14 bg-cyan-300/40 rounded-[35%] animate-[spin_2s_linear_infinite_reverse]"></div>
+//       </div>
+//     </div>
+//     <div className="text-center space-y-2">
+//       <h3 className="text-xl font-black text-slate-900 tracking-tight">Waking up the servers...</h3>
+//       <p className="text-xs font-bold text-slate-400 max-w-[250px] mx-auto leading-relaxed">
+//         We are spinning up the servers. This usually takes about <span className="text-brand-primary">30-40 seconds</span> on the first run.
+//       </p>
+//     </div>
+//   </div>
+// );
+
 // export const RegisterPage = () => {
 //   const navigate = useNavigate();
-  
-//   const { 
-//     register, 
-//     handleSubmit, 
-//     watch, 
-//     formState: { errors } 
-//   } = useForm<RegisterForm>({
+//   const { register, handleSubmit, watch, formState: { errors } } = useForm<RegisterForm>({
 //     resolver: zodResolver(registerSchema)
 //   });
 
-// const selectedBuilding = watch('building_name');
-// const availableFlats = BUILDING_DATA[selectedBuilding] || [];
+//   const { data: buildings = [], isLoading: isBuildingsLoading } = useQuery({
+//     queryKey: ['publicBuildings'],
+//     queryFn: getPublicBuildings,
+//   });
+
+//   const selectedBuildingName = watch('building_name');
+//   const passwordValue = watch('password') || '';
+
+//   const selectedBuildingObj = buildings.find((b: any) => b.name === selectedBuildingName);
+//   const availableFlats = selectedBuildingObj ? selectedBuildingObj.flats : [];
 
 //   const mutation = useMutation({
 //     mutationFn: (data: RegisterForm) => {
-//       // Map "Other" building name and clean data
 //       const finalBuilding = data.building_name === 'Other' ? data.other_building : data.building_name;
-      
-//       const payload = {
-//         full_name: data.full_name,
-//         mobile: data.mobile,
-//         email: data.email === "" ? null : data.email,
+//       return authService.register({
+//         ...data,
 //         building_name: finalBuilding,
-//         flat_number: data.flat_number,
-//         password: data.password
-//       };
-
-//       return authService.register(payload);
+//         email: data.email === "" ? null : data.email,
+//       });
 //     },
 //     onSuccess: () => {
 //       toast.success("Account created! Please login.");
 //       navigate('/login');
 //     },
-//     onError: (err: any) => {
-//       toast.error(err.response?.data?.detail || "Registration failed");
-//     }
+//     onError: (err: any) => toast.error(err.response?.data?.detail || "Registration failed")
 //   });
 
 //   return (
@@ -220,346 +319,124 @@ export const RegisterPage = () => {
 //       <div className="max-w-md w-full mx-auto space-y-8">
 //         <div className="text-center">
 //           <h2 className="text-4xl font-black text-slate-900 tracking-tighter">Join Us.</h2>
-//           <p className="mt-2 text-slate-500 font-medium">Create your 4 STAR LAUNDRY account</p>
+//           <p className="mt-2 text-slate-500 font-medium">Professional care for your favorites.</p>
 //         </div>
 
-//         <form onSubmit={handleSubmit((data) => mutation.mutate(data))} className="space-y-4">
-//           <div className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/60 border border-slate-100 space-y-5">
-            
-//             {/* Full Name */}
-//             <div className="relative">
-//               <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-//               <input 
-//                 {...register('full_name')}
-//                 placeholder="Full Name"
-//                 className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary transition-all outline-none"
-//               />
-//               {errors.full_name && <p className="text-red-500 text-[10px] mt-1 ml-2 font-bold uppercase">{errors.full_name.message}</p>}
-//             </div>
-
-//             {/* Mobile */}
-//             <div className="relative">
-//               <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-//               <input 
-//                 {...register('mobile')}
-//                 placeholder="Mobile Number"
-//                 className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none"
-//               />
-//               {errors.mobile && <p className="text-red-500 text-[10px] mt-1 ml-2 font-bold uppercase">{errors.mobile.message}</p>}
-//             </div>
-
-//             {/* Email */}
-//             <div className="relative">
-//               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-//               <input 
-//                 {...register('email')}
-//                 type="email"
-//                 placeholder="Email (Optional)"
-//                 className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none"
-//               />
-//             </div>
-
-//             <hr className="border-slate-50" />
-
-//             {/* Address Group */}
-//             <div className="space-y-3">
-//               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Delivery Address</p>
+//         {/* Show Loader if pending, otherwise show Form */}
+//         {mutation.isPending ? (
+//           <LaundryLoader />
+//         ) : (
+//           <form onSubmit={handleSubmit((data) => mutation.mutate(data))} className="space-y-4 animate-in fade-in duration-300">
+//             <div className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/60 border border-slate-100 space-y-5">
               
-//               {/* Building Dropdown */}
-//               <div className="relative">
-//                 <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
-//                 <select 
-//                   {...register('building_name')}
-//                   className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none appearance-none"
-//                 >
-//                   <option value="">Select Building</option>
-//                   {BUILDINGS.map(b => <option key={b} value={b}>{b}</option>)}
-//                 </select>
+//               {/* Standard Inputs */}
+//               <div className="space-y-4">
+//                  <div className="relative">
+//                   <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+//                   <input {...register('full_name')} placeholder="Full Name" className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none" />
+//                 </div>
+//                 <div className="relative">
+//                   <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+//                   <input {...register('mobile')} placeholder="Mobile Number" className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none" />
+//                 </div>
 //               </div>
 
-//               {/* Conditional "Other" Building Input */}
-//               {selectedBuilding === 'Other' && (
-//                 <div className="animate-in fade-in slide-in-from-top-2">
+//               <hr className="border-slate-50" />
+
+//               {/* Dynamic Building/Flat Logic */}
+//               <div className="space-y-3">
+//                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Address Details</p>
+                
+//                 <div className="relative">
+//                   <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+//                   <select 
+//                     {...register('building_name')} 
+//                     disabled={isBuildingsLoading}
+//                     className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none appearance-none disabled:opacity-50"
+//                   >
+//                     <option value="">{isBuildingsLoading ? "Loading buildings..." : "Select Building"}</option>
+//                     {buildings.map((b: any) => (
+//                       <option key={b.id} value={b.name}>{b.name}</option>
+//                     ))}
+//                     <option value="Other">Other Building...</option>
+//                   </select>
+//                 </div>
+
+//                 {selectedBuildingName === 'Other' && (
+//                   <div className="animate-in fade-in slide-in-from-top-2 duration-300 space-y-1">
+//                     <input 
+//                       {...register('other_building')} 
+//                       placeholder="Enter Building Name" 
+//                       className={`w-full px-5 py-4 bg-white border-2 rounded-2xl font-bold text-slate-900 outline-none transition-all ${errors.other_building ? 'border-red-500 focus:ring-red-500' : 'border-slate-100 focus:ring-brand-primary'}`} 
+//                     />
+//                     {errors.other_building && (
+//                       <p className="text-[10px] font-bold text-red-500 flex items-center gap-1 ml-1 uppercase tracking-widest">
+//                         <AlertCircle size={10} /> {errors.other_building.message}
+//                       </p>
+//                     )}
+//                   </div>
+//                 )}
+
+//                 {/* FLAT NUMBER INPUT WITH ERROR DISPLAY */}
+//                 {selectedBuildingName && (
+//                   <div className="relative animate-in fade-in slide-in-from-top-2 duration-300">
+//                     <Home className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                    
+//                     {selectedBuildingName !== 'Other' && availableFlats.length > 0 ? (
+//                       <select {...register('flat_number')} className={`w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 outline-none appearance-none ${errors.flat_number ? 'ring-2 ring-red-500' : 'focus:ring-2 focus:ring-brand-primary'}`}>
+//                         <option value="">Select Flat Number</option>
+//                         {availableFlats.map((f: string) => <option key={f} value={f}>{f}</option>)}
+//                       </select>
+//                     ) : (
+//                       <input {...register('flat_number')} placeholder="Flat / Villa Number" className={`w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 outline-none ${errors.flat_number ? 'ring-2 ring-red-500' : 'focus:ring-2 focus:ring-brand-primary'}`} />
+//                     )}
+
+//                     {/* NEW: Displays the Flat Number error so the user knows why it won't submit */}
+//                     {errors.flat_number && (
+//                       <p className="text-[10px] font-bold text-red-500 flex items-center gap-1 ml-1 mt-1.5 uppercase tracking-widest">
+//                         <AlertCircle size={10} /> {errors.flat_number.message}
+//                       </p>
+//                     )}
+//                   </div>
+//                 )}
+//               </div>
+
+//               <hr className="border-slate-50" />
+
+//               {/* Password with Visual Requirements */}
+//               <div className="space-y-3">
+//                 <div className="relative">
+//                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
 //                   <input 
-//                     {...register('other_building')}
-//                     placeholder="Enter Building Name"
-//                     className="w-full px-5 py-4 bg-white border-2 border-slate-100 rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none"
+//                     {...register('password')} 
+//                     type="password" 
+//                     inputMode="numeric"
+//                     placeholder="Set 4-Digit PIN" 
+//                     className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none" 
 //                   />
 //                 </div>
-//               )}
-
-//               {/* Flat Number */}
-//               <div className="relative">
-//                 <Home className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-//                 <input 
-//                   {...register('flat_number')}
-//                   placeholder="Flat / Villa Number"
-//                   className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none"
-//                 />
-//                 {errors.flat_number && <p className="text-red-500 text-[10px] mt-1 ml-2 font-bold uppercase">{errors.flat_number.message}</p>}
+//                 <div className="flex gap-4 px-2">
+//                   <div className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-tight transition-colors ${passwordValue.length >= 4 ? 'text-emerald-500' : 'text-slate-300'}`}>
+//                     {passwordValue.length >= 4 ? <CheckCircle2 size={12}/> : <Circle size={12}/>} 4+ Digits
+//                   </div>
+//                   <div className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-tight transition-colors ${/^\d+$/.test(passwordValue) && passwordValue !== '' ? 'text-emerald-500' : 'text-slate-300'}`}>
+//                     {/^\d+$/.test(passwordValue) && passwordValue !== '' ? <CheckCircle2 size={12}/> : <Circle size={12}/>} Numbers Only
+//                   </div>
+//                 </div>
 //               </div>
 //             </div>
 
-//             <hr className="border-slate-50" />
-
-//             {/* Password */}
-//             <div className="relative">
-//               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-//               <input 
-//                 {...register('password')}
-//                 type="password"
-//                 inputMode="numeric"
-//                 pattern="[0-9]*"
-//                 placeholder="Password (Numeric 4+ Digits)"
-//                 className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary outline-none"
-//               />
-//               {errors.password && <p className="text-red-500 text-[10px] mt-1 ml-2 font-bold uppercase">{errors.password.message}</p>}
-//             </div>
-//           </div>
-
-//           <button 
-//             type="submit"
-//             disabled={mutation.isPending}
-//             className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black uppercase tracking-widest text-xs hover:bg-brand-primary transition-all shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-70"
-//           >
-//             {mutation.isPending ? <Loader2 className="animate-spin" size={18} /> : (
-//               <>Create Account <ArrowRight size={16} /></>
-//             )}
-//           </button>
-//         </form>
-
-//         <p className="text-center text-slate-500 font-bold text-sm">
-//           Already have an account? <Link to="/login" className="text-brand-primary underline">Login here</Link>
-//         </p>
-//       </div>
-//     </div>
-//   );
-// };
-
-// import { useState } from 'react';
-// import { useForm } from 'react-hook-form';
-// import { zodResolver } from '@hookform/resolvers/zod';
-// import * as z from 'zod';
-
-// // Predefined building list (we can move this to a constants file later)
-// const BUILDINGS = [
-//   "Al Nahda Tower",
-//   "Silicon Oasis - Gate 1",
-//   "Marina Heights",
-//   "Business Bay Residences",
-//   "Other"
-// ];
-
-// const registerSchema = z.zobject({
-//   phone_number: z.string().min(10, "Valid phone number required"),
-//   full_name: z.string().min(2, "Name is required"),
-//   password: z.string().regex(/^\d{4,}$/, "Password must be at least 4 digits (numbers only)"),
-//   building_name: z.string().min(1, "Please select a building"),
-//   other_building: z.string().optional(),
-//   flat_number: z.string().min(1, "Flat number is required"),
-// });
-
-// type RegisterForm = z.infer<typeof registerSchema>;
-
-// export const RegisterPage = () => {
-//   const [selectedBuilding, setSelectedBuilding] = useState('');
-  
-//   const { register, handleSubmit, formState: { errors }, watch } = useForm<RegisterForm>({
-//     resolver: zodResolver(registerSchema)
-//   });
-
-//   const onSubmit = (data: RegisterForm) => {
-//     // If "Other" is selected, use the manual building name
-//     const finalData = {
-//       ...data,
-//       building_name: data.building_name === 'Other' ? data.other_building : data.building_name
-//     };
-//     console.log("Registering with:", finalData);
-//     // authService.register(finalData)...
-//   };
-
-//   return (
-//     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 p-6 bg-white rounded-3xl shadow-sm">
-//       {/* Full Name & Phone Number inputs here... */}
-
-//       {/* Building Dropdown */}
-//       <div className="space-y-1">
-//         <label className="text-xs font-bold text-slate-500 uppercase ml-2">Building</label>
-//         <select 
-//           {...register('building_name')}
-//           onChange={(e) => setSelectedBuilding(e.target.value)}
-//           className="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold outline-none ring-2 ring-transparent focus:ring-brand-primary transition-all"
-//         >
-//           <option value="">Select Building</option>
-//           {BUILDINGS.map(b => <option key={b} value={b}>{b}</option>)}
-//         </select>
-//         {errors.building_name && <p className="text-red-500 text-xs mt-1">{errors.building_name.message}</p>}
-//       </div>
-
-//       {/* Conditional Manual Building Input */}
-//       {selectedBuilding === 'Other' && (
-//         <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
-//           <label className="text-xs font-bold text-slate-500 uppercase ml-2">Enter Building Name</label>
-//           <input 
-//             {...register('other_building')}
-//             className="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold outline-none ring-2 ring-transparent focus:ring-brand-primary transition-all"
-//             placeholder="e.g. Skyline Apartments"
-//           />
-//         </div>
-//       )}
-
-//       {/* Flat Number */}
-//       <div className="space-y-1">
-//         <label className="text-xs font-bold text-slate-500 uppercase ml-2">Flat / Villa Number</label>
-//         <input 
-//           {...register('flat_number')}
-//           className="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold outline-none ring-2 ring-transparent focus:ring-brand-primary transition-all"
-//           placeholder="e.g. 402"
-//         />
-//         {errors.flat_number && <p className="text-red-500 text-xs mt-1">{errors.flat_number.message}</p>}
-//       </div>
-
-//       {/* Password - Numeric Only */}
-//       <div className="space-y-1">
-//         <label className="text-xs font-bold text-slate-500 uppercase ml-2">Password (4+ Digits)</label>
-//         <input 
-//           type="password"
-//           inputMode="numeric"
-//           {...register('password')}
-//           className="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold outline-none ring-2 ring-transparent focus:ring-brand-primary transition-all"
-//           placeholder="XXXX"
-//         />
-//         {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
-//       </div>
-
-//       <button type="submit" className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black uppercase tracking-widest hover:bg-brand-primary transition-colors">
-//         Create Account
-//       </button>
-//     </form>
-//   );
-// };
-
-
-
-
-
-// // src/features/auth/pages/RegisterPage.tsx
-// import { useForm } from 'react-hook-form';
-// import { useMutation } from '@tanstack/react-query';
-// import { Link, useNavigate } from 'react-router-dom';
-// import { authService } from '../api/auth.service';
-// import { toast } from 'sonner';
-// import { User, Phone, Mail, Lock, ArrowRight, Loader2 } from 'lucide-react';
-
-// export const RegisterPage = () => {
-//   const navigate = useNavigate();
-//   const { register, handleSubmit, formState: { errors } } = useForm();
-
-//   const mutation = useMutation({
-//   mutationFn: (data: any) => {
-//     // Clean the data: Convert empty strings to null or remove them
-//     const cleanedData = Object.fromEntries(
-//       Object.entries(data).map(([key, value]) => [
-//         key, 
-//         value === "" ? null : value // Convert "" to null
-//       ])
-//     );
-//     return authService.register(cleanedData);
-//   },
-//   onSuccess: () => {
-//     toast.success("Account created! Please login.");
-//     navigate('/login');
-//   },
-//     onError: (err: any) => {
-//       toast.error(err.response?.data?.detail || "Registration failed");
-//     }
-//   });
-
-//   return (
-//     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-6">
-//       <div className="max-w-md w-full mx-auto space-y-8">
-//         <div className="text-center">
-//           <h2 className="text-4xl font-black text-slate-900 tracking-tighter">Join Us.</h2>
-//           <p className="mt-2 text-slate-500 font-medium">Create your 4 STAR LAUNDRY account</p>
-//         </div>
-
-//         <form onSubmit={handleSubmit((data) => mutation.mutate(data))} className="space-y-4">
-//           <div className="bg-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/60 border border-slate-100 space-y-5">
-            
-//             {/* Full Name */}
-//             <div className="relative">
-//               <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-//               <input 
-//                 {...register('full_name', { required: true })}
-//                 placeholder="Full Name"
-//                 className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary transition-all"
-//               />
-//             </div>
-
-//             {/* Mobile & Email */}
-//             <div className="grid grid-cols-1 gap-4">
-//               <div className="relative">
-//                 <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-//                 <input 
-//                   {...register('mobile', { required: true })}
-//                   placeholder="Mobile Number"
-//                   className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary"
-//                 />
-//               </div>
-//               <div className="relative">
-//                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-//                 <input 
-//                   {...register('email')}
-//                   type="email"
-//                   placeholder="Email (Optional)"
-//                   className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary"
-//                 />
-//               </div>
-//             </div>
-
-//             {/* Address Group */}
-//             <div className="pt-2">
-//               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 ml-1">Location Details</p>
-//               <div className="grid grid-cols-2 gap-3">
-//                 <input 
-//                   {...register('flat_number')}
-//                   placeholder="Flat No."
-//                   className="w-full px-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary"
-//                 />
-//                 <input 
-//                   {...register('building_name')}
-//                   placeholder="Building"
-//                   className="w-full px-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary"
-//                 />
-//               </div>
-//             </div>
-
-//             {/* Password */}
-//             <div className="relative">
-//               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-//               <input 
-//                 {...register('password', { required: true, minLength: 6 })}
-//                 type="password"
-//                 placeholder="Create Password"
-//                 className="w-full pl-12 pr-4 py-4 bg-slate-50 border-none rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary"
-//               />
-//             </div>
-//           </div>
-
-//           <button 
-//             type="submit"
-//             disabled={mutation.isPending}
-//             className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black uppercase tracking-widest text-xs hover:bg-brand-primary transition-all shadow-xl flex items-center justify-center gap-3 active:scale-[0.98]"
-//           >
-//             {mutation.isPending ? <Loader2 className="animate-spin" size={18} /> : (
-//               <>Create Account <ArrowRight size={16} /></>
-//             )}
-//           </button>
-//         </form>
-
-//         <p className="text-center text-slate-500 font-bold text-sm">
-//           Already have an account? <Link to="/login" className="text-brand-primary underline">Login here</Link>
-//         </p>
+//             <button disabled={mutation.isPending} className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black uppercase tracking-widest text-xs hover:bg-brand-primary transition-all shadow-xl flex items-center justify-center gap-3 disabled:opacity-70 active:scale-95">
+//               Create Account <ArrowRight size={16} />
+//             </button>
+//           </form>
+//         )}
+        
+//         {!mutation.isPending && (
+//           <p className="text-center text-slate-500 font-bold text-sm animate-in fade-in">
+//             Already have an account? <Link to="/login" className="text-brand-primary underline">Login here</Link>
+//           </p>
+//         )}
 //       </div>
 //     </div>
 //   );
