@@ -5,6 +5,7 @@ import {
   User,
   LayoutDashboard,
   Truck,
+  Package,
   PackageSearch, // Updated to match Sidebar
   Shirt,         // Updated to match Sidebar
   TicketPercent, // Updated to match Sidebar
