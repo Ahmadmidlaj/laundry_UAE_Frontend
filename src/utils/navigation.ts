@@ -5,13 +5,14 @@ import {
   User,
   LayoutDashboard,
   Truck,
-  Package,
-  Tag,
+  PackageSearch, // Updated to match Sidebar
+  Shirt,         // Updated to match Sidebar
+  TicketPercent, // Updated to match Sidebar
   Users,
   BarChart3,
-  ListOrdered,
-  Building2,
+  Building2,     // Used for Locations/Buildings
   Wallet,
+  Settings       // Added missing Settings import
 } from "lucide-react";
 
 type Role = "CUSTOMER" | "ADMIN" | "EMPLOYEE" | undefined;
@@ -19,18 +20,17 @@ type Role = "CUSTOMER" | "ADMIN" | "EMPLOYEE" | undefined;
 export const getNavItems = (role: Role) => {
   switch (role) {
     case "ADMIN":
-      return [
+     return [
         { label: "Dashboard", path: "/admin", icon: LayoutDashboard },
-        { label: "Reports", path: "/admin/reports", icon: BarChart3 },
-        { label: "Orders", path: "/admin/orders", icon: ListOrdered },
-        { label: "Items", path: "/admin/items", icon: Package },
+        { label: "Orders", path: "/admin/orders", icon: PackageSearch }, 
+        { label: "Services", path: "/admin/items", icon: Shirt }, // Aligned with sidebar
+        { label: "Offers", path: "/admin/offers", icon: TicketPercent }, // Aligned with sidebar
         { label: "Users", path: "/admin/users", icon: Users },
-        { label: "Offers", path: "/admin/offers", icon: Tag },
-        { label: "Buildings", path: "/admin/buildings", icon: Tag },
-        { label: "Profile", path: "/profile", icon: User },
-        // { label: "Buildings", icon: Building2, path: "/admin/buildings" },
-        { label: "Expenses", icon: Wallet, path: "/admin/expenses" },
-        { label: "Settings", icon: Wallet, path: "/admin/settings" },
+        { label: "Reports", path: "/admin/reports", icon: BarChart3 },
+        { label: "Locations", path: "/admin/buildings", icon: Building2 }, // Fixed Icon & Label
+        { label: "Expenses", path: "/admin/expenses", icon: Wallet },
+        { label: "Settings", path: "/admin/settings", icon: Settings }, // Fixed Icon
+        { label: "Profile", path: "/profile", icon: User }, // Keep for mobile nav
       ];
     case "EMPLOYEE":
       return [
