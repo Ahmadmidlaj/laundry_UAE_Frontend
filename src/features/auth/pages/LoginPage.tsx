@@ -111,6 +111,8 @@ export const LoginPage = () => {
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input 
                   type="password"
+                  inputMode="numeric" // <-- Added this
+                  pattern="[0-9]*"    // <-- Added this
                   placeholder="Password"
                   required
                   value={password}
@@ -162,6 +164,170 @@ export const LoginPage = () => {
     </div>
   );
 };
+// // src/features/auth/pages/LoginPage.tsx
+// import { useState } from 'react';
+// import { Link, useNavigate } from 'react-router-dom';
+// import { useAuthStore } from '@/store/useAuthStore';
+// import { authService } from '../api/auth.service';
+// import api from '@/api/axios';
+// import { toast } from 'sonner';
+// import { Phone, Lock, ArrowRight, Loader2, Sparkles } from 'lucide-react';
+
+// export const LoginPage = () => {
+//   const [mobile, setMobile] = useState('');
+//   const [password, setPassword] = useState('');
+//   const [loading, setLoading] = useState(false);
+//   const [error, setError] = useState('');
+  
+//   const setAuth = useAuthStore((state) => state.setAuth);
+//   const navigate = useNavigate();
+
+//   const handleSubmit = async (e: React.FormEvent) => {
+//     e.preventDefault();
+//     setLoading(true);
+//     setError('');
+
+//     try {
+//       const formData = new FormData();
+//       formData.append('username', mobile);
+//       formData.append('password', password);
+
+//       // 1. Get the token
+//       const data = await authService.login(formData);
+//       const token = data.access_token;
+
+//       // 2. IMMEDIATE FETCH: Pass the token directly to the me call 
+//       const user = await api.get('/users/me', {
+//         headers: { Authorization: `Bearer ${token}` }
+//       }).then(res => res.data);
+      
+//       // 3. Save both to the store
+//       setAuth(user, token);
+      
+//       // 4. Navigate home
+//       toast.success(`Welcome back, ${user.full_name.split(' ')[0]}!`);
+//       navigate('/');
+//     } catch (err: any) {
+//       console.error("Login Error:", err);
+//       const errorMsg = err.response?.data?.detail || 'Invalid mobile number or password';
+//       setError(errorMsg);
+//       toast.error(errorMsg);
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   return (
+//     <div className="relative min-h-screen flex flex-col justify-center py-12 px-6">
+      
+//       {/* 1. BACKGROUND LAYER */}
+//       <div 
+//         className="fixed inset-0 z-0 bg-cover bg-center opacity-30 brightness-75 pointer-events-none"
+//         style={{ backgroundImage: "url('/images/bg5.jpg')" }}
+//       />
+
+//       {/* 2. CONTENT LAYER */}
+//       <div className="relative z-10 max-w-md w-full mx-auto space-y-8">
+        
+//         {/* Logo & Header */}
+//         <div className="flex flex-col items-center text-center bg-white/60 backdrop-blur-md p-8 rounded-3xl border border-white shadow-sm">
+          
+//           {/* Logo Image */}
+//           <div className="inline-flex h-20 w-20 rounded-[1.5rem] bg-white border border-slate-100 items-center justify-center shadow-xl shadow-slate-200/50 mb-4 p-1.5 rotate-3 hover:rotate-0 transition-transform duration-500 overflow-hidden shrink-0">
+//              <img src="/logo/logo.jpg" alt="Al Nejoum Logo" className="h-full w-full object-contain" />
+//           </div>
+
+//           {/* OFFICIAL BRAND NAME */}
+//           <div className="flex flex-col justify-center items-center mb-6">
+//             <span className="text-2xl font-black tracking-tight text-slate-900 leading-none">
+//               Al Nejoum
+//             </span>
+//             <span className="text-brand-primary font-black text-[10px] uppercase tracking-[0.2em] mt-1">
+//               Al Arbaah Laundry
+//             </span>
+//           </div>
+
+//           <h2 className="text-3xl font-black text-slate-800 tracking-tighter">Welcome Back.</h2>
+//           <p className="mt-2 text-slate-500 font-medium text-sm">Fresh clothes are just a few taps away.</p>
+//         </div>
+
+//         {/* Login Card */}
+//         <form onSubmit={handleSubmit} className="space-y-4 animate-in fade-in duration-300">
+//           <div className="bg-white/90 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-xl border border-white space-y-5 relative overflow-hidden">
+            
+//             {/* Subtle glassmorphism decoration */}
+//             <div className="absolute top-0 right-0 w-32 h-32 bg-brand-primary/10 rounded-full -mr-16 -mt-16 blur-3xl pointer-events-none" />
+
+//             <div className="space-y-4">
+//               {/* Mobile Input */}
+//               <div className="relative">
+//                 <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+//                 <input 
+//                   type="tel"
+//                   placeholder="Mobile Number"
+//                   required
+//                   value={mobile}
+//                   onChange={e => setMobile(e.target.value)}
+//                   className="w-full pl-12 pr-4 py-4 bg-white/50 border border-slate-100/50 rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary transition-all placeholder:text-slate-400 outline-none"
+//                 />
+//               </div>
+
+//               {/* Password Input */}
+//               <div className="relative">
+//                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+//                 <input 
+//                   type="password"
+//                   placeholder="Password"
+//                   required
+//                   value={password}
+//                   onChange={e => setPassword(e.target.value)}
+//                   className="w-full pl-12 pr-4 py-4 bg-white/50 border border-slate-100/50 rounded-2xl font-bold text-slate-900 focus:ring-2 focus:ring-brand-primary transition-all placeholder:text-slate-400 outline-none"
+//                 />
+//               </div>
+//             </div>
+
+//             {error && (
+//               <div className="flex items-center gap-2 text-red-500 bg-red-50 p-3 rounded-xl border border-red-100 animate-in fade-in zoom-in duration-300">
+//                 <p className="text-xs font-black uppercase tracking-widest">{error}</p>
+//               </div>
+//             )}
+
+//             <div className="flex justify-end px-1">
+//               <Link to="/forgot-password" className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 hover:text-brand-primary transition-colors">
+//                 Forgot password?
+//               </Link>
+//             </div>
+//           </div>
+
+//           <button 
+//             type="submit"
+//             disabled={loading}
+//             className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black uppercase tracking-widest text-xs hover:bg-brand-primary transition-all shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-70"
+//           >
+//             {loading ? <Loader2 className="animate-spin" size={18} /> : (
+//               <>Sign In <ArrowRight size={16} /></>
+//             )}
+//           </button>
+//         </form>
+
+//         {/* Footer */}
+//         <div className="bg-white/60 backdrop-blur-md p-5 rounded-3xl border border-white shadow-sm text-center space-y-3">
+//           <p className="text-slate-600 font-bold text-sm">
+//             Don't have an account?{' '}
+//             <Link to="/register" className="text-brand-primary hover:underline underline-offset-4">
+//               Create Account
+//             </Link>
+//           </p>
+          
+//           <div className="flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
+//             <Sparkles size={12} />
+//             <span>Premium Laundry Service</span>
+//           </div>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// };
 // import { useState } from 'react';
 // import { Link, useNavigate } from 'react-router-dom';
 // import { useAuthStore } from '@/store/useAuthStore';
