@@ -1,3 +1,4 @@
+// src/features/orders/pages/OrderHistory.tsx
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import api from '@/api/axios';
@@ -22,20 +23,20 @@ export const OrderHistory = () => {
       className={cn(
         "flex items-center justify-between transition-all active:scale-[0.99]",
         isMini 
-          ? "bg-slate-50/50 p-4 rounded-2xl opacity-70 grayscale hover:grayscale-0 hover:opacity-100" 
-          : "bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-primary/20"
+          ? "bg-white/50 backdrop-blur-md border border-white p-4 rounded-2xl opacity-70 grayscale hover:grayscale-0 hover:opacity-100" 
+          : "bg-white/90 backdrop-blur-xl p-5 rounded-3xl border border-white shadow-sm hover:shadow-md hover:border-brand-primary/40"
       )}
     >
       <div className="flex items-center gap-4">
         <div className={cn(
           "h-12 w-12 rounded-2xl flex items-center justify-center",
-          isMini ? "bg-slate-100 text-slate-400" : "bg-brand-primary/10 text-brand-primary"
+          isMini ? "bg-slate-100/80 text-slate-400" : "bg-brand-primary/10 text-brand-primary"
         )}>
           <Box size={22} />
         </div>
         <div>
           <p className="font-black text-slate-900"># {order.id.toString().padStart(5, '0')}</p>
-          <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+          <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500">
             <Clock size={12} />
             <span>{new Date(order.created_at).toLocaleDateString()}</span>
             <span>•</span>
@@ -49,7 +50,7 @@ export const OrderHistory = () => {
         <span className={cn(
           "text-[9px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg",
           order.status === 'DELIVERED' 
-            ? "bg-slate-100 text-slate-500" 
+            ? "bg-slate-200/50 text-slate-600" 
             : "bg-brand-primary text-white shadow-sm"
         )}>
           {order.status.replace('_', ' ')}
@@ -60,40 +61,149 @@ export const OrderHistory = () => {
   );
 
   return (
-    <div className="space-y-8 max-w-2xl mx-auto pb-24 px-1">
-      <header>
-        <h1 className="text-3xl font-black text-slate-900 tracking-tight">Orders</h1>
-        <p className="text-slate-400 font-medium">Keep track of your laundry cycle.</p>
-      </header>
+    <div className="relative min-h-screen">
+      {/* 1. BACKGROUND LAYER */}
+      <div 
+        className="fixed inset-0 z-0 bg-cover bg-center opacity-30 brightness-75 pointer-events-none"
+        style={{ backgroundImage: "url('/images/bg5.jpg')" }}
+      />
 
-      {/* ACTIVE ORDERS SECTION */}
-      <div className="space-y-4">
-        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Currently in Progress</h3>
-        <div className="grid gap-4">
-          {activeOrders.length > 0 ? (
-            activeOrders.map(order => <OrderCard key={order.id} order={order} />)
-          ) : (
-            <div className="p-10 text-center bg-white rounded-3xl border border-slate-100">
-              <Package className="mx-auto text-slate-100 mb-3" size={40} />
-              <p className="text-xs font-bold text-slate-400">No active laundry. Need a clean?</p>
-              <Link to="/orders/new" className="text-xs font-black text-brand-primary uppercase mt-4 block">New Order</Link>
-            </div>
-          )}
-        </div>
-      </div>
+      {/* 2. CONTENT LAYER */}
+      <div className="relative z-10 space-y-8 max-w-2xl mx-auto pb-24 px-4 md:px-1 pt-4">
+        <header className="bg-white/60 backdrop-blur-md p-4 rounded-3xl border border-white shadow-sm mt-2">
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Orders</h1>
+          <p className="text-slate-500 font-medium">Keep track of your laundry cycle.</p>
+        </header>
 
-      {/* COMPLETED ORDERS SECTION */}
-      {completedOrders.length > 0 && (
-        <div className="space-y-4 pt-4">
-          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 opacity-60">Order History</h3>
-          <div className="grid gap-3">
-            {completedOrders.map(order => <OrderCard key={order.id} order={order} isMini={true} />)}
+        {/* ACTIVE ORDERS SECTION */}
+        <div className="space-y-4">
+          <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-1 bg-white/50 backdrop-blur-md w-max px-3 py-1.5 rounded-lg border border-white">
+            Currently in Progress
+          </h3>
+          <div className="grid gap-4">
+            {activeOrders.length > 0 ? (
+              activeOrders.map(order => <OrderCard key={order.id} order={order} />)
+            ) : (
+              <div className="p-10 text-center bg-white/90 backdrop-blur-xl rounded-3xl border border-white shadow-sm">
+                <Package className="mx-auto text-slate-300 mb-3" size={40} />
+                <p className="text-xs font-bold text-slate-500">No active laundry. Need a clean?</p>
+                <Link to="/orders/new" className="text-xs font-black text-brand-primary uppercase mt-4 block">New Order</Link>
+              </div>
+            )}
           </div>
         </div>
-      )}
+
+        {/* COMPLETED ORDERS SECTION */}
+        {completedOrders.length > 0 && (
+          <div className="space-y-4 pt-4">
+            <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-widest ml-1 opacity-80 bg-white/50 backdrop-blur-md w-max px-3 py-1.5 rounded-lg border border-white/50">
+              Order History
+            </h3>
+            <div className="grid gap-3">
+              {completedOrders.map(order => <OrderCard key={order.id} order={order} isMini={true} />)}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
+// import { useQuery } from '@tanstack/react-query';
+// import { Link } from 'react-router-dom';
+// import api from '@/api/axios';
+// import { Package, ChevronRight, Clock, Box } from 'lucide-react';
+// import { cn } from '@/utils/cn';
+
+// export const OrderHistory = () => {
+//   const { data: orders, isLoading } = useQuery({
+//     queryKey: ['myOrders'],
+//     queryFn: async () => (await api.get('/orders/')).data,
+//   });
+
+//   if (isLoading) return <div className="p-12 text-center text-slate-400 font-bold animate-pulse">Fetching your history...</div>;
+
+//   // Logic: Split orders into Active and Completed
+//   const activeOrders = orders?.filter((o: any) => o.status !== 'DELIVERED') || [];
+//   const completedOrders = orders?.filter((o: any) => o.status === 'DELIVERED') || [];
+
+//   const OrderCard = ({ order, isMini }: { order: any, isMini?: boolean }) => (
+//     <Link 
+//       to={`/orders/${order.id}`}
+//       className={cn(
+//         "flex items-center justify-between transition-all active:scale-[0.99]",
+//         isMini 
+//           ? "bg-slate-50/50 p-4 rounded-2xl opacity-70 grayscale hover:grayscale-0 hover:opacity-100" 
+//           : "bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md hover:border-brand-primary/20"
+//       )}
+//     >
+//       <div className="flex items-center gap-4">
+//         <div className={cn(
+//           "h-12 w-12 rounded-2xl flex items-center justify-center",
+//           isMini ? "bg-slate-100 text-slate-400" : "bg-brand-primary/10 text-brand-primary"
+//         )}>
+//           <Box size={22} />
+//         </div>
+//         <div>
+//           <p className="font-black text-slate-900"># {order.id.toString().padStart(5, '0')}</p>
+//           <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+//             <Clock size={12} />
+//             <span>{new Date(order.created_at).toLocaleDateString()}</span>
+//             <span>•</span>
+//             <span className="text-brand-primary">AED {order.final_price || order.estimated_price}</span>
+//           </div>
+//         </div>
+//       </div>
+      
+//       {/* Mobile-Friendly Status Badge */}
+//       <div className="flex items-center gap-3">
+//         <span className={cn(
+//           "text-[9px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg",
+//           order.status === 'DELIVERED' 
+//             ? "bg-slate-100 text-slate-500" 
+//             : "bg-brand-primary text-white shadow-sm"
+//         )}>
+//           {order.status.replace('_', ' ')}
+//         </span>
+//         <ChevronRight className="text-slate-300" size={18} />
+//       </div>
+//     </Link>
+//   );
+
+//   return (
+//     <div className="space-y-8 max-w-2xl mx-auto pb-24 px-1">
+//       <header>
+//         <h1 className="text-3xl font-black text-slate-900 tracking-tight">Orders</h1>
+//         <p className="text-slate-400 font-medium">Keep track of your laundry cycle.</p>
+//       </header>
+
+//       {/* ACTIVE ORDERS SECTION */}
+//       <div className="space-y-4">
+//         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Currently in Progress</h3>
+//         <div className="grid gap-4">
+//           {activeOrders.length > 0 ? (
+//             activeOrders.map(order => <OrderCard key={order.id} order={order} />)
+//           ) : (
+//             <div className="p-10 text-center bg-white rounded-3xl border border-slate-100">
+//               <Package className="mx-auto text-slate-100 mb-3" size={40} />
+//               <p className="text-xs font-bold text-slate-400">No active laundry. Need a clean?</p>
+//               <Link to="/orders/new" className="text-xs font-black text-brand-primary uppercase mt-4 block">New Order</Link>
+//             </div>
+//           )}
+//         </div>
+//       </div>
+
+//       {/* COMPLETED ORDERS SECTION */}
+//       {completedOrders.length > 0 && (
+//         <div className="space-y-4 pt-4">
+//           <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 opacity-60">Order History</h3>
+//           <div className="grid gap-3">
+//             {completedOrders.map(order => <OrderCard key={order.id} order={order} isMini={true} />)}
+//           </div>
+//         </div>
+//       )}
+//     </div>
+//   );
+// };
 // import { useQuery } from '@tanstack/react-query';
 // import { Link } from 'react-router-dom';
 // import api from '@/api/axios';

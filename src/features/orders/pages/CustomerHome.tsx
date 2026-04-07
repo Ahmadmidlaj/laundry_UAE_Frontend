@@ -1,122 +1,289 @@
-import { Link } from 'react-router-dom';
-import { useAuthStore } from '@/store/useAuthStore';
-// import { Button } from '@/components/ui/Button';
-import { Plus, Clock, TrendingUp, Sparkles, ChevronRight, Package } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import api from '@/api/axios';
-import { PromoSlider } from '../components/PromoSlider';
-import { ordersService } from '../api/orders.service';
-
+// src/features/orders/pages/CustomerHome.tsx
+import { Link } from "react-router-dom";
+import { useAuthStore } from "@/store/useAuthStore";
+import {
+  Plus,
+  Clock,
+  TrendingUp,
+  Sparkles,
+  ChevronRight,
+  Package,
+} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import api from "@/api/axios";
+import { PromoSlider } from "../components/PromoSlider";
+import { ordersService } from "../api/orders.service";
 
 export const CustomerHome = () => {
   const { user } = useAuthStore();
 
   const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ['customerStats'],
-    queryFn: ordersService.getMyStats, // No more 422 error!
+    queryKey: ["customerStats"],
+    queryFn: ordersService.getMyStats,
   });
 
-  // 2. Fetch Recent Orders (Limited to 3)
   const { data: recentOrders, isLoading: ordersLoading } = useQuery({
-    queryKey: ['recentOrders'],
-    queryFn: async () => (await api.get('/orders/')).data,
-    select: (data) => data.slice(0, 3), // Just get the latest 3
+    queryKey: ["recentOrders"],
+    queryFn: async () => (await api.get("/orders/")).data,
+    select: (data) => data.slice(0, 3),
   });
 
   return (
-    <div className="space-y-8 pb-24 md:pb-8 max-w-2xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col gap-1 px-1">
-        <h1 className="text-3xl font-black text-slate-900 tracking-tight">
-          Hey, {user?.full_name?.split(' ')[0]}! 👋
-        </h1>
-        <PromoSlider />
-        <p className="text-slate-400 font-medium italic">Ready for some fresh clothes?</p>
-      </div>
-
-      {/* Primary CTA Card */}
-      <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-slate-200 relative overflow-hidden group">
-        <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-brand-primary/20 rounded-full blur-3xl group-hover:bg-brand-primary/30 transition-all duration-700" />
-        
-        <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-4">
-             <span className="px-3 py-1 bg-brand-primary/20 text-brand-primary rounded-full text-[10px] font-black tracking-widest uppercase">Quick Service</span>
-          </div>
-          <h2 className="text-2xl font-bold mb-2">Book a Pickup</h2>
-          <p className="text-slate-400 text-sm mb-8 max-w-[220px] leading-relaxed">
-            Your personal laundry assistant is just one click away.
+    <div className="relative min-h-screen">
+     
+     <div 
+        className="fixed inset-0 z-0 bg-cover bg-center opacity-50 brightness-75 pointer-events-none"
+        style={{ backgroundImage: "url('/images/bg5.jpg')" }}
+      />
+      <div className="relative z-10 space-y-8 pb-24 md:pb-8 max-w-2xl mx-auto pt-4 px-4 md:px-0">
+        {/* Header */}
+        <div className="flex flex-col gap-1 px-1 bg-white/60 backdrop-blur-md p-4 rounded-3xl border border-white shadow-sm">
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+            Hey, {user?.full_name?.split(" ")[0]}! 👋
+          </h1>
+          <p className="text-slate-500 font-medium italic mb-4">
+            Ready for some fresh clothes?
           </p>
-          <Link to="/orders/new">
-            <button className="w-full bg-brand-primary hover:bg-brand-primary/90 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg shadow-brand-primary/20">
-              <Plus size={20} />
-              SCHEDULE NOW
-            </button>
-          </Link>
+          <PromoSlider />
         </div>
-      </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-4">
-        {[
-          { label: 'Total Orders', value: stats?.total_orders, icon: TrendingUp, color: 'blue' },
-          { label: 'Savings', value: `AED ${stats?.discounts_received || 0}`, icon: Sparkles, color: 'emerald' }
-        ].map((item, i) => (
-          <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-start gap-3">
-             <div className={`p-2 bg-${item.color}-50 text-${item.color}-500 rounded-xl`}>
-                <item.icon size={20} />
-             </div>
-             <div>
-                <p className="text-2xl font-black text-slate-900 tracking-tighter">{statsLoading ? '...' : item.value}</p>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{item.label}</p>
-             </div>
+        {/* Primary CTA Card */}
+        <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-slate-200 relative overflow-hidden group">
+          <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-brand-primary/20 rounded-full blur-3xl group-hover:bg-brand-primary/30 transition-all duration-700" />
+
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="px-3 py-1 bg-brand-primary/20 text-brand-primary rounded-full text-[10px] font-black tracking-widest uppercase">
+                Quick Service
+              </span>
+            </div>
+            <h2 className="text-2xl font-bold mb-2">Book a Pickup</h2>
+            <p className="text-slate-400 text-sm mb-8 max-w-[220px] leading-relaxed">
+              Your personal laundry assistant is just one click away.
+            </p>
+            <Link to="/orders/new">
+              <button className="w-full bg-brand-primary hover:bg-brand-primary/90 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg shadow-brand-primary/20">
+                <Plus size={20} />
+                SCHEDULE NOW
+              </button>
+            </Link>
           </div>
-        ))}
-      </div>
-
-      {/* Recent Activity */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between px-1">
-          <h3 className="font-black text-slate-900 uppercase text-xs tracking-widest">Recent Activity</h3>
-          <Link to="/orders" className="text-[11px] font-black text-brand-primary uppercase tracking-tighter">View History</Link>
         </div>
 
-        <div className="space-y-3">
-          {ordersLoading ? (
-            <div className="animate-pulse bg-slate-50 h-32 rounded-3xl" />
-          ) : recentOrders?.length > 0 ? (
-            recentOrders.map((order: any) => (
-              <Link 
-                key={order.id} 
-                to={`/orders/${order.id}`}
-                className="group bg-white p-4 rounded-2xl border border-slate-50 shadow-sm flex items-center justify-between hover:border-brand-primary/30 transition-all active:scale-[0.98]"
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 gap-4">
+          {[
+            {
+              label: "Total Orders",
+              value: stats?.total_orders,
+              icon: TrendingUp,
+              color: "blue",
+            },
+            {
+              label: "Savings",
+              value: `AED ${stats?.discounts_received || 0}`,
+              icon: Sparkles,
+              color: "emerald",
+            },
+          ].map((item, i) => (
+            <div
+              key={i}
+              className="bg-white/80 backdrop-blur-xl p-6 rounded-3xl border border-white shadow-sm flex flex-col items-start gap-3"
+            >
+              <div
+                className={`p-2 bg-${item.color}-50 text-${item.color}-500 rounded-xl`}
               >
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-brand-primary/10 group-hover:text-brand-primary transition-colors">
-                    <Package size={20} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-slate-900 text-sm"># {order.id.toString().padStart(5, '0')}</p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black text-brand-primary uppercase tracking-tighter">
-                        {order.status.replace('_', ' ')}
-                      </span>
+                <item.icon size={20} />
+              </div>
+              <div>
+                <p className="text-2xl font-black text-slate-900 tracking-tighter">
+                  {statsLoading ? "..." : item.value}
+                </p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  {item.label}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Recent Activity */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="font-black text-slate-900 uppercase text-xs tracking-widest">
+              Recent Activity
+            </h3>
+            <Link
+              to="/orders"
+              className="text-[11px] font-black text-brand-primary uppercase tracking-tighter"
+            >
+              View History
+            </Link>
+          </div>
+
+          <div className="space-y-3">
+            {ordersLoading ? (
+              <div className="animate-pulse bg-white/50 h-32 rounded-3xl" />
+            ) : recentOrders?.length > 0 ? (
+              recentOrders.map((order: any) => (
+                <Link
+                  key={order.id}
+                  to={`/orders/${order.id}`}
+                  className="group bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-white shadow-sm flex items-center justify-between hover:border-brand-primary/30 transition-all active:scale-[0.98]"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-brand-primary/10 group-hover:text-brand-primary transition-colors">
+                      <Package size={20} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-900 text-sm">
+                        # {order.id.toString().padStart(5, "0")}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black text-brand-primary uppercase tracking-tighter">
+                          {order.status.replace("_", " ")}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <ChevronRight size={18} className="text-slate-300 group-hover:text-brand-primary" />
-              </Link>
-            ))
-          ) : (
-            <div className="bg-slate-50 rounded-3xl p-8 text-center border-2 border-dashed border-slate-100">
-               <Clock className="mx-auto text-slate-300 mb-2" />
-               <p className="text-xs font-bold text-slate-400">No active orders yet.</p>
-            </div>
-          )}
+                  <ChevronRight
+                    size={18}
+                    className="text-slate-300 group-hover:text-brand-primary"
+                  />
+                </Link>
+              ))
+            ) : (
+              <div className="bg-white/80 backdrop-blur-md rounded-3xl p-8 text-center border-2 border-dashed border-white shadow-sm">
+                <Clock className="mx-auto text-slate-300 mb-2" />
+                <p className="text-xs font-bold text-slate-400">
+                  No active orders yet.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 };
+// import { Link } from 'react-router-dom';
+// import { useAuthStore } from '@/store/useAuthStore';
+// // import { Button } from '@/components/ui/Button';
+// import { Plus, Clock, TrendingUp, Sparkles, ChevronRight, Package } from 'lucide-react';
+// import { useQuery } from '@tanstack/react-query';
+// import api from '@/api/axios';
+// import { PromoSlider } from '../components/PromoSlider';
+// import { ordersService } from '../api/orders.service';
+
+// export const CustomerHome = () => {
+//   const { user } = useAuthStore();
+
+//   const { data: stats, isLoading: statsLoading } = useQuery({
+//     queryKey: ['customerStats'],
+//     queryFn: ordersService.getMyStats, // No more 422 error!
+//   });
+
+//   // 2. Fetch Recent Orders (Limited to 3)
+//   const { data: recentOrders, isLoading: ordersLoading } = useQuery({
+//     queryKey: ['recentOrders'],
+//     queryFn: async () => (await api.get('/orders/')).data,
+//     select: (data) => data.slice(0, 3), // Just get the latest 3
+//   });
+
+//   return (
+//     <div className="space-y-8 pb-24 md:pb-8 max-w-2xl mx-auto">
+//       {/* Header */}
+//       <div className="flex flex-col gap-1 px-1">
+//         <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+//           Hey, {user?.full_name?.split(' ')[0]}! 👋
+//         </h1>
+//         <PromoSlider />
+//         <p className="text-slate-400 font-medium italic">Ready for some fresh clothes?</p>
+//       </div>
+
+//       {/* Primary CTA Card */}
+//       <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-slate-200 relative overflow-hidden group">
+//         <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-brand-primary/20 rounded-full blur-3xl group-hover:bg-brand-primary/30 transition-all duration-700" />
+
+//         <div className="relative z-10">
+//           <div className="flex items-center gap-2 mb-4">
+//              <span className="px-3 py-1 bg-brand-primary/20 text-brand-primary rounded-full text-[10px] font-black tracking-widest uppercase">Quick Service</span>
+//           </div>
+//           <h2 className="text-2xl font-bold mb-2">Book a Pickup</h2>
+//           <p className="text-slate-400 text-sm mb-8 max-w-[220px] leading-relaxed">
+//             Your personal laundry assistant is just one click away.
+//           </p>
+//           <Link to="/orders/new">
+//             <button className="w-full bg-brand-primary hover:bg-brand-primary/90 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg shadow-brand-primary/20">
+//               <Plus size={20} />
+//               SCHEDULE NOW
+//             </button>
+//           </Link>
+//         </div>
+//       </div>
+
+//       {/* Stats Grid */}
+//       <div className="grid grid-cols-2 gap-4">
+//         {[
+//           { label: 'Total Orders', value: stats?.total_orders, icon: TrendingUp, color: 'blue' },
+//           { label: 'Savings', value: `AED ${stats?.discounts_received || 0}`, icon: Sparkles, color: 'emerald' }
+//         ].map((item, i) => (
+//           <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-start gap-3">
+//              <div className={`p-2 bg-${item.color}-50 text-${item.color}-500 rounded-xl`}>
+//                 <item.icon size={20} />
+//              </div>
+//              <div>
+//                 <p className="text-2xl font-black text-slate-900 tracking-tighter">{statsLoading ? '...' : item.value}</p>
+//                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{item.label}</p>
+//              </div>
+//           </div>
+//         ))}
+//       </div>
+
+//       {/* Recent Activity */}
+//       <div className="space-y-4">
+//         <div className="flex items-center justify-between px-1">
+//           <h3 className="font-black text-slate-900 uppercase text-xs tracking-widest">Recent Activity</h3>
+//           <Link to="/orders" className="text-[11px] font-black text-brand-primary uppercase tracking-tighter">View History</Link>
+//         </div>
+
+//         <div className="space-y-3">
+//           {ordersLoading ? (
+//             <div className="animate-pulse bg-slate-50 h-32 rounded-3xl" />
+//           ) : recentOrders?.length > 0 ? (
+//             recentOrders.map((order: any) => (
+//               <Link
+//                 key={order.id}
+//                 to={`/orders/${order.id}`}
+//                 className="group bg-white p-4 rounded-2xl border border-slate-50 shadow-sm flex items-center justify-between hover:border-brand-primary/30 transition-all active:scale-[0.98]"
+//               >
+//                 <div className="flex items-center gap-4">
+//                   <div className="h-12 w-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-brand-primary/10 group-hover:text-brand-primary transition-colors">
+//                     <Package size={20} />
+//                   </div>
+//                   <div>
+//                     <p className="font-bold text-slate-900 text-sm"># {order.id.toString().padStart(5, '0')}</p>
+//                     <div className="flex items-center gap-2">
+//                       <span className="text-[10px] font-black text-brand-primary uppercase tracking-tighter">
+//                         {order.status.replace('_', ' ')}
+//                       </span>
+//                     </div>
+//                   </div>
+//                 </div>
+//                 <ChevronRight size={18} className="text-slate-300 group-hover:text-brand-primary" />
+//               </Link>
+//             ))
+//           ) : (
+//             <div className="bg-slate-50 rounded-3xl p-8 text-center border-2 border-dashed border-slate-100">
+//                <Clock className="mx-auto text-slate-300 mb-2" />
+//                <p className="text-xs font-bold text-slate-400">No active orders yet.</p>
+//             </div>
+//           )}
+//         </div>
+//       </div>
+//     </div>
+//   );
+// };
 // import { Link } from 'react-router-dom';
 // import { useAuthStore } from '@/store/useAuthStore';
 // import { Button } from '@/components/ui/Button';
@@ -147,7 +314,7 @@ export const CustomerHome = () => {
 //       <div className="bg-brand-primary rounded-premium p-6 sm:p-8 text-white shadow-soft relative overflow-hidden">
 //         {/* Decorative background shape */}
 //         <div className="absolute -right-6 -top-6 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl pointer-events-none"></div>
-        
+
 //         <div className="relative z-10">
 //           <h2 className="text-xl font-bold mb-2">Need a pickup?</h2>
 //           <p className="text-primary-50 text-sm mb-6 max-w-[250px]">
