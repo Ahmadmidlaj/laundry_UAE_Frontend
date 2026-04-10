@@ -64,7 +64,7 @@ export const CustomerHome = () => {
             <Link to="/orders/new">
               <button className="w-full bg-brand-primary hover:bg-brand-primary/90 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg shadow-brand-primary/20">
                 <Plus size={20} />
-                SCHEDULE NOW
+                  BOOK NOW
               </button>
             </Link>
           </div>
