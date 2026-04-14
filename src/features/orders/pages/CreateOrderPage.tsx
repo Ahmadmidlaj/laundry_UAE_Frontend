@@ -1,10 +1,9 @@
-// src/features/orders/pages/CreateOrderPage.tsx
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { ordersService, type OrderPayload } from '../api/orders.service';
+import { ordersService, type OrderPayload, type LaundryItem } from '../api/orders.service';
 import { adminService } from '@/features/admin/api/admin.service'; 
 import { userService } from '@/features/user/api/user.service';
-import { Plus, Minus, Calendar, ShoppingBag, ArrowRight, Sparkles, Loader2, Wallet } from 'lucide-react';
+import { Plus, Minus, Calendar, ShoppingBag, ArrowRight, Sparkles, Loader2, Wallet, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { OrderSuccessScreen } from '../components/OrderSuccessScreen';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -25,7 +24,10 @@ export const CreateOrderPage = () => {
     queryFn: adminService.getSystemConfig,
   });
 
-  const [cart, setCart] = useState<Record<number, number>>({});
+  // UPGRADED CART STATE: Record<"itemId_categoryId", quantity>
+  // e.g., "1_base" (Standard Wash), "1_2" (Item 1, Dry Clean)
+  const [cart, setCart] = useState<Record<string, number>>({});
+  const [expandedItem, setExpandedItem] = useState<number | null>(null); // For accordion UI
   const [pickupDate, setPickupDate] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
   const [finalSavings, setFinalSavings] = useState(0);
@@ -54,9 +56,23 @@ export const CreateOrderPage = () => {
     queryFn: adminService.getOffers,
   });
 
+  // UPGRADED SUBTOTAL CALCULATION
   const { subtotal, appliedOffer, discount, total } = useMemo(() => {
     if (!items) return { subtotal: 0, appliedOffer: null, discount: 0, total: 0 };
-    const sub = items.reduce((sum, item) => sum + (item.base_price * (cart[item.id] || 0)), 0);
+    
+    let sub = 0;
+    Object.entries(cart).forEach(([cartKey, qty]) => {
+      if (qty <= 0) return;
+      const [itemIdStr, catIdStr] = cartKey.split('_');
+      const item = items.find(i => i.id === Number(itemIdStr));
+      if (!item || !item.services) return;
+
+      const service = item.services.find(s => s.service_category_id === Number(catIdStr));
+      if (service) {
+        sub += service.price * qty;
+      }
+    });
+
     const bestOffer = offers
       ?.filter(o => o.is_active && sub >= o.min_order_amount)
       .sort((a, b) => b.discount_amount - a.discount_amount)[0];
@@ -80,10 +96,12 @@ export const CreateOrderPage = () => {
     },
   });
 
-  const updateQuantity = (itemId: number, delta: number) => {
+  // UPGRADED CART HANDLER
+  const updateQuantity = (itemId: number, catId: number | 'base', delta: number) => {
+    const key = `${itemId}_${catId}`;
     setCart((prev) => ({
       ...prev,
-      [itemId]: Math.max(0, (prev[itemId] || 0) + delta)
+      [key]: Math.max(0, (prev[key] || 0) + delta)
     }));
   };
 
@@ -99,19 +117,28 @@ export const CreateOrderPage = () => {
 
     const selectedDateTime = new Date(pickupDate);
     const now = new Date();
-    const diffInMinutes = (selectedDateTime.getTime() - now.getTime()) / (1000 * 60);
-
-    if (diffInMinutes < 60) {
+    if ((selectedDateTime.getTime() - now.getTime()) / (1000 * 60) < 60) {
       return toast.error("Pickup time must be at least 1 hour from now.");
     }
 
     const [datePart, timePart] = pickupDate.split('T');
+    
+    // UPGRADED PAYLOAD BUILDER
+   const orderItemsPayload = Object.entries(cart)
+      .filter(([_, qty]) => qty > 0)
+      .map(([key, qty]) => {
+        const [itemIdStr, catIdStr] = key.split('_');
+        return {
+          item_id: Number(itemIdStr),
+          service_category_id: Number(catIdStr), // Strictly send the number
+          estimated_quantity: qty
+        };
+      });
+
     const payload: OrderPayload = {
       pickup_date: datePart,
       pickup_time: timePart,
-      items: Object.entries(cart)
-        .filter(([_, qty]) => qty > 0)
-        .map(([id, qty]) => ({ item_id: Number(id), estimated_quantity: qty })),
+      items: orderItemsPayload,
       notes: "",
       credits_to_use: useWallet ? creditsToUse : 0 
     };
@@ -121,43 +148,88 @@ export const CreateOrderPage = () => {
 
   const finalDisplayTotal = Math.max(0, total - (useWallet ? creditsToUse : 0));
 
+  // Helper to count total active items under one parent item
+  const getItemTotalQty = (itemId: number) => {
+    return Object.entries(cart).reduce((sum, [key, qty]) => {
+      if (key.startsWith(`${itemId}_`)) return sum + qty;
+      return sum;
+    }, 0);
+  };
+
   return (
     <div className="relative min-h-screen">
-      {/* 1. BACKGROUND LAYER */}
-      <div 
-        className="fixed inset-0 z-0 bg-cover bg-center opacity-40 brightness-75 pointer-events-none"
-        style={{ backgroundImage: "url('/images/bg4.jpg')" }}
-      />
+      <div className="fixed inset-0 z-0 bg-cover bg-center opacity-40 brightness-75 pointer-events-none" style={{ backgroundImage: "url('/images/bg4.jpg')" }} />
 
-      {/* 2. CONTENT LAYER */}
       <div className="relative z-10 max-w-2xl mx-auto space-y-8 pb-12 px-4 pt-4">
-        
         <header className="bg-white/60 backdrop-blur-md p-4 rounded-3xl border border-white shadow-sm mt-2">
           <h1 className="text-3xl font-black text-slate-900 tracking-tighter">New Order</h1>
-          <p className="text-slate-500 font-medium">Professional care for your favorites.</p>
+          <p className="text-slate-500 font-medium">Select your items and services.</p>
         </header>
 
-        {/* Item Selection Section */}
+        {/* UPGRADED ITEM SELECTION (Nested Accordion) */}
         <section className="space-y-4">
           <h3 className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] flex items-center gap-2 bg-white/50 backdrop-blur-md w-max px-3 py-1.5 rounded-lg border border-white">
             <ShoppingBag size={14} /> Service Menu
           </h3>
           <div className="grid gap-3">
-            {items?.map((item) => (
-              <div key={item.id} className="bg-white/90 backdrop-blur-xl p-5 rounded-[2rem] border border-white shadow-sm flex items-center justify-between group hover:border-brand-primary/40 transition-all">
-                <div>
-                  <p className="font-bold text-slate-800 group-hover:text-brand-primary transition-colors">{item.name}</p>
-                  <p className="text-xs font-bold text-slate-500">AED {item.base_price} / pc</p>
+           {items?.map((item) => {
+              const totalQty = getItemTotalQty(item.id);
+              const isExpanded = expandedItem === item.id;
+              
+              // Helper to find lowest price to display on parent row
+              const startingPrice = item.services?.length 
+                ? Math.min(...item.services.map(s => s.price)) 
+                : 0;
+
+              return (
+                <div key={item.id} className="bg-white/90 backdrop-blur-xl rounded-[2rem] border border-white shadow-sm overflow-hidden transition-all duration-300">
+                  
+                  {/* Parent Row (Clickable) */}
+                  <div 
+                    onClick={() => setExpandedItem(isExpanded ? null : item.id)}
+                    className="p-5 flex items-center justify-between cursor-pointer hover:bg-slate-50/50 transition-colors"
+                  >
+                    <div>
+                      <p className="font-bold text-slate-800">{item.name}</p>
+                      <p className="text-xs font-bold text-slate-500">From AED {startingPrice}</p>
+                    </div>
+                    
+                    <div className="flex items-center gap-4">
+                      {totalQty > 0 && (
+                        <span className="bg-brand-primary text-white text-[10px] font-black px-2 py-1 rounded-lg">
+                          {totalQty} Added
+                        </span>
+                      )}
+                      {isExpanded ? <ChevronUp className="text-slate-400" /> : <ChevronDown className="text-slate-400" />}
+                    </div>
+                  </div>
+
+                  {/* Expanded Nested Services Array */}
+                  {isExpanded && item.services && (
+                    <div className="px-5 pb-5 pt-2 bg-slate-50/50 border-t border-slate-100 space-y-3 animate-in slide-in-from-top-2 duration-200">
+                      
+                      {item.services.map((svc) => (
+                        <div key={svc.id} className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-bold text-slate-700">{svc.category?.name || "Service"}</p>
+                            <p className="text-xs font-bold text-brand-primary">AED {svc.price}</p>
+                          </div>
+                          <div className="flex items-center gap-3 bg-white p-1 rounded-xl shadow-sm border border-slate-100">
+                            <button onClick={(e) => { e.stopPropagation(); updateQuantity(item.id, svc.service_category_id, -1); }} className="h-7 w-7 rounded-lg bg-slate-50 flex items-center justify-center active:scale-90"><Minus size={12}/></button>
+                            <span className="w-4 text-center font-black text-xs">{cart[`${item.id}_${svc.service_category_id}`] || 0}</span>
+                            <button onClick={(e) => { e.stopPropagation(); updateQuantity(item.id, svc.service_category_id, 1); }} className="h-7 w-7 rounded-lg bg-slate-900 text-white flex items-center justify-center active:scale-90"><Plus size={12}/></button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-4 bg-slate-100/50 p-1.5 rounded-2xl">
-                  <button onClick={() => updateQuantity(item.id, -1)} className="h-8 w-8 rounded-xl bg-white flex items-center justify-center shadow-sm active:scale-90 transition-all"><Minus size={14}/></button>
-                  <span className="w-4 text-center font-black text-sm">{cart[item.id] || 0}</span>
-                  <button onClick={() => updateQuantity(item.id, 1)} className="h-8 w-8 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-lg active:scale-90 transition-all"><Plus size={14}/></button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
+
+        {/* ... (Keep your Schedule Section and Order Summary Sections exactly the same) ... */}
 
         {/* Schedule Section */}
         <section className="space-y-4">

@@ -1,14 +1,14 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { adminService } from '../api/admin.service';
-import { Shirt, Edit2, PlusCircle, Loader2 } from 'lucide-react';
+import { Shirt, Edit2, PlusCircle, Loader2, Tags } from 'lucide-react'; // Added Tags icon
 import { useState } from 'react';
 import { ServiceItemModal } from '../components/ServiceItemModal';
+import { CategoryManagementModal } from '../components/CategoryManagementModal'; // <-- IMPORT NEW MODAL
 
 export const PriceManagement = () => {
-  const queryClient = useQueryClient();
-  
-  // 1. Manage Modal Visibility and Selection
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // 1. Manage Modal Visibility
+  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false); // <-- NEW STATE
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
   // 2. Fetch Laundry Items
@@ -18,32 +18,43 @@ export const PriceManagement = () => {
   });
 
   const handleEdit = (item: any) => {
-    setSelectedItem(item); // Load existing item data into state
-    setIsModalOpen(true);
+    setSelectedItem(item); 
+    setIsItemModalOpen(true);
   };
 
-  const handleAddNew = () => {
-    setSelectedItem(null); // Clear selection so modal knows it's a NEW item
-    setIsModalOpen(true);
+  const handleAddNewItem = () => {
+    setSelectedItem(null); 
+    setIsItemModalOpen(true);
   };
 
   return (
     <div className="space-y-8">
-      <header className="flex justify-between items-end">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Services & Pricing</h1>
           <p className="text-slate-500 font-medium">Manage your laundry catalog and base rates.</p>
         </div>
         
-        {/* ADD NEW CATEGORY BUTTON */}
-        <button 
-          onClick={handleAddNew}
-          className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-brand-primary transition-all shadow-xl shadow-slate-200"
-        >
-          <PlusCircle size={18} /> Add Category
-        </button>
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          {/* MANAGE SERVICE TYPES BUTTON */}
+          <button 
+            onClick={() => setIsCategoryModalOpen(true)}
+            className="flex-1 md:flex-none bg-white text-slate-700 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 border border-slate-200 hover:bg-slate-50 transition-all shadow-sm"
+          >
+            <Tags size={16} /> Service Types
+          </button>
+
+          {/* ADD NEW ITEM BUTTON */}
+          <button 
+            onClick={handleAddNewItem}
+            className="flex-1 md:flex-none bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-brand-primary transition-all shadow-xl shadow-slate-200"
+          >
+            <PlusCircle size={18} /> Add Item
+          </button>
+        </div>
       </header>
 
+      {/* ... KEEP YOUR EXISTING LOADING AND GRID RENDER CODE EXACTLY THE SAME ... */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
           <Loader2 className="animate-spin mb-4" size={40} />
@@ -58,42 +69,149 @@ export const PriceManagement = () => {
                   <Shirt size={28} />
                 </div>
                 
-                {/* EDIT BUTTON (Triggers Modal) */}
                 <button
                   onClick={() => handleEdit(item)}
-                  className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-900 hover:text-white transition-all shadow-sm"
+                  className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-900 hover:text-white transition-all shadow-sm z-10 relative"
                 >
                   <Edit2 size={16} />
                 </button>
               </div>
 
-              <div>
+              <div className="relative z-10">
                 <h3 className="text-lg font-black text-slate-900 mb-1">{item.name}</h3>
-                <div className="flex items-baseline gap-2">
+                <div className="flex items-baseline gap-2 mb-2">
                   <span className="text-2xl font-black text-slate-900 tracking-tighter">AED {item.base_price}</span>
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">/ per item</span>
                 </div>
+                
+                {/* Optional: Show a quick badge if it has custom services */}
+                {item.services && item.services.length > 0 && (
+                  <span className="inline-block bg-brand-primary/10 text-brand-primary text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-widest">
+                    +{item.services.length} Custom Services
+                  </span>
+                )}
               </div>
               
-              {/* Decorative background shirt icon */}
               <Shirt className="absolute -right-4 -bottom-4 text-slate-50 opacity-40 group-hover:text-brand-primary/5 transition-colors" size={100} />
             </div>
           ))}
         </div>
       )}
 
-      {/* MODAL COMPONENT */}
+      {/* MODALS */}
       <ServiceItemModal 
-        isOpen={isModalOpen}
+        isOpen={isItemModalOpen}
         onClose={() => {
-          setIsModalOpen(false);
+          setIsItemModalOpen(false);
           setSelectedItem(null);
         }}
         initialData={selectedItem}
       />
+
+      {/* NEW: Mount the Category Manager Modal */}
+      <CategoryManagementModal 
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+      />
     </div>
   );
 };
+// import { useQuery, useQueryClient } from '@tanstack/react-query';
+// import { adminService } from '../api/admin.service';
+// import { Shirt, Edit2, PlusCircle, Loader2 } from 'lucide-react';
+// import { useState } from 'react';
+// import { ServiceItemModal } from '../components/ServiceItemModal';
+
+// export const PriceManagement = () => {
+//   const queryClient = useQueryClient();
+  
+//   // 1. Manage Modal Visibility and Selection
+//   const [isModalOpen, setIsModalOpen] = useState(false);
+//   const [selectedItem, setSelectedItem] = useState<any>(null);
+
+//   // 2. Fetch Laundry Items
+//   const { data: items, isLoading } = useQuery({
+//     queryKey: ['serviceItems'],
+//     queryFn: adminService.getItems,
+//   });
+
+//   const handleEdit = (item: any) => {
+//     setSelectedItem(item); // Load existing item data into state
+//     setIsModalOpen(true);
+//   };
+
+//   const handleAddNew = () => {
+//     setSelectedItem(null); // Clear selection so modal knows it's a NEW item
+//     setIsModalOpen(true);
+//   };
+
+//   return (
+//     <div className="space-y-8">
+//       <header className="flex justify-between items-end">
+//         <div>
+//           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Services & Pricing</h1>
+//           <p className="text-slate-500 font-medium">Manage your laundry catalog and base rates.</p>
+//         </div>
+        
+//         {/* ADD NEW CATEGORY BUTTON */}
+//         <button 
+//           onClick={handleAddNew}
+//           className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-brand-primary transition-all shadow-xl shadow-slate-200"
+//         >
+//           <PlusCircle size={18} /> Add Category
+//         </button>
+//       </header>
+
+//       {isLoading ? (
+//         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+//           <Loader2 className="animate-spin mb-4" size={40} />
+//           <p className="font-bold uppercase tracking-widest text-[10px]">Updating Catalog...</p>
+//         </div>
+//       ) : (
+//         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+//           {items?.map((item: any) => (
+//             <div key={item.id} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:border-brand-primary/20 transition-all group relative overflow-hidden">
+//               <div className="flex justify-between items-start mb-6">
+//                 <div className="h-14 w-14 rounded-2xl bg-slate-50 text-slate-400 flex items-center justify-center group-hover:bg-brand-primary/10 group-hover:text-brand-primary transition-colors">
+//                   <Shirt size={28} />
+//                 </div>
+                
+//                 {/* EDIT BUTTON (Triggers Modal) */}
+//                 <button
+//                   onClick={() => handleEdit(item)}
+//                   className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-900 hover:text-white transition-all shadow-sm"
+//                 >
+//                   <Edit2 size={16} />
+//                 </button>
+//               </div>
+
+//               <div>
+//                 <h3 className="text-lg font-black text-slate-900 mb-1">{item.name}</h3>
+//                 <div className="flex items-baseline gap-2">
+//                   <span className="text-2xl font-black text-slate-900 tracking-tighter">AED {item.base_price}</span>
+//                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">/ per item</span>
+//                 </div>
+//               </div>
+              
+//               {/* Decorative background shirt icon */}
+//               <Shirt className="absolute -right-4 -bottom-4 text-slate-50 opacity-40 group-hover:text-brand-primary/5 transition-colors" size={100} />
+//             </div>
+//           ))}
+//         </div>
+//       )}
+
+//       {/* MODAL COMPONENT */}
+//       <ServiceItemModal 
+//         isOpen={isModalOpen}
+//         onClose={() => {
+//           setIsModalOpen(false);
+//           setSelectedItem(null);
+//         }}
+//         initialData={selectedItem}
+//       />
+//     </div>
+//   );
+// };
 // import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 // import { adminService } from '../api/admin.service';
 // import { Shirt, Edit2, Check, X, PlusCircle } from 'lucide-react';

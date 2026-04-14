@@ -123,8 +123,44 @@ export const OrderDetailPage = () => {
               {order.items?.length || 0} ITEMS
             </span>
           </div>
-          
+
           <div className="divide-y divide-slate-100/50">
+            {order.items && order.items.length > 0 ? (
+              order.items.map((item: any, idx: number) => {
+                const displayQty = order.status === 'NEW_ORDER' 
+                  ? item.estimated_quantity 
+                  : item.final_quantity;
+
+                // NEW: Combine item name + service category for the receipt
+                const serviceLabel = item.service_category?.name 
+                  ? ` (${item.service_category.name})` 
+                  : ' (Standard)';
+
+                return (
+                  <div key={idx} className="p-5 flex justify-between items-center hover:bg-white transition-colors">
+                    <div className="flex flex-col">
+                      <span className="text-slate-900 font-bold text-sm">
+                        {item.item?.name || "Standard Item"} 
+                        <span className="text-brand-primary">{serviceLabel}</span>
+                      </span>
+                      <span className="text-slate-500 text-xs font-bold">
+                        QTY: {displayQty} × AED {item.unit_price.toFixed(2)}
+                      </span>
+                    </div>
+                    <span className="font-black text-slate-900 text-sm">
+                      AED {(displayQty * item.unit_price).toFixed(2)}
+                    </span>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="p-10 text-center text-slate-400 text-sm italic">
+                No items recorded.
+              </div>
+            )}
+          </div>
+          
+          {/* <div className="divide-y divide-slate-100/50">
             {order.items && order.items.length > 0 ? (
               order.items.map((item: any, idx: number) => {
                 const displayQty = order.status === 'NEW_ORDER' 
@@ -152,7 +188,7 @@ export const OrderDetailPage = () => {
                 No items recorded.
               </div>
             )}
-          </div>
+          </div> */}
 
           {/* Total Calculation Section */}
           <div className="p-6 bg-slate-900 text-white flex justify-between items-center relative overflow-hidden">
