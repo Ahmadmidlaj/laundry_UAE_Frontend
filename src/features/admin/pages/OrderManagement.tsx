@@ -2,19 +2,29 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminService } from '../api/admin.service';
-import { formatOrderId } from '@/utils/formatters';
-import { Search, Loader2, Edit3, Package, X, MinusCircle, AlertCircle } from 'lucide-react';
+import { formatOrderId, formatSafeDate, formatTimeTo12h } from '@/utils/formatters';
+import { 
+  Search, Loader2, Edit3, Package, X, MinusCircle, 
+  AlertCircle, Download, BarChart2, CalendarDays, 
+  Clock, StickyNote // <-- Added StickyNote icon
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/utils/cn';
 
 export const OrderManagement = () => {
   const [search, setSearch] = useState('');
   const [editingOrder, setEditingOrder] = useState<any>(null); 
+  
+  // Report Mode States
+  const [isReportMode, setIsReportMode] = useState(false);
+  const [dateRange, setDateRange] = useState({ from: '', to: '' });
+
   const queryClient = useQueryClient();
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['adminAllOrders'],
     queryFn: adminService.getAllOrders,
+    refetchInterval: 15000, 
   });
 
   const { data: masterItems = [] } = useQuery({
@@ -23,7 +33,6 @@ export const OrderManagement = () => {
     enabled: !!editingOrder, 
   });
 
-  // FLATTEN MASTER ITEMS FOR THE MATRIX DROPDOWN
   const matrixOptions = useMemo(() => {
     const options: any[] = [];
     masterItems.forEach((item: any) => {
@@ -52,32 +61,117 @@ export const OrderManagement = () => {
     }
   });
 
-  const filteredOrders = orders.filter((o: any) => {
-    const searchLower = search.toLowerCase();
-    const customerName = o.customer?.full_name?.toLowerCase() || '';
-    const orderIdStr = o.id?.toString() || '';
-    return customerName.includes(searchLower) || orderIdStr.includes(searchLower);
-  });
+  const filteredOrders = useMemo(() => {
+    return orders.filter((o: any) => {
+      const searchLower = search.toLowerCase();
+      const customerName = o.customer?.full_name?.toLowerCase() || '';
+      const orderIdStr = o.id?.toString() || '';
+      const matchesSearch = customerName.includes(searchLower) || orderIdStr.includes(searchLower);
+
+      let matchesDate = true;
+      if (isReportMode && (dateRange.from || dateRange.to)) {
+        const orderDate = new Date(o.created_at || o.pickup_date);
+        orderDate.setHours(0, 0, 0, 0); 
+        
+        if (dateRange.from) {
+          const fromDate = new Date(dateRange.from);
+          fromDate.setHours(0, 0, 0, 0);
+          if (orderDate < fromDate) matchesDate = false;
+        }
+        if (dateRange.to) {
+          const toDate = new Date(dateRange.to);
+          toDate.setHours(0, 0, 0, 0);
+          if (orderDate > toDate) matchesDate = false;
+        }
+      }
+
+      return matchesSearch && matchesDate;
+    });
+  }, [orders, search, isReportMode, dateRange]);
+
+  const handleExportCSV = () => {
+    if (filteredOrders.length === 0) return toast.error("No data to export");
+    const headers = [
+      "Order Number", "Order Date", "Customer Name", "Mobile Number", 
+      "Building Name", "Flat Number", "Amount (AED)", "Status", "Hanger Needed", "Remarks"
+    ];
+    const escapeCSV = (val: any) => `"${String(val || '').replace(/"/g, '""')}"`;
+    const csvRows = filteredOrders.map((o: any) => {
+      const displayPrice = o.status === 'NEW_ORDER' ? o.estimated_price : o.final_price;
+      const orderDate = new Date(o.created_at || o.pickup_date).toLocaleDateString();
+      return [
+        formatOrderId(o.id), orderDate, o.customer?.full_name || 'Guest',
+        o.customer?.mobile || 'N/A', o.customer?.building_name || 'N/A',
+        o.customer?.flat_number || 'N/A', displayPrice?.toFixed(2) || '0.00',
+        o.status, o.hanger_needed ? "Yes" : "No", o.notes || ""
+      ].map(escapeCSV).join(',');
+    });
+    const csvContent = [headers.join(','), ...csvRows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Orders_Report_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
+    link.click();
+  };
 
   if (isLoading) return <OrderManagementSkeleton />;
 
   return (
     <div className="space-y-8 pb-20 relative">
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tighter">Order Vault</h1>
-          <p className="text-slate-500 font-medium">Manage all customer transactions.</p>
+      <header className="flex flex-col gap-6">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tighter">Order Vault</h1>
+            <p className="text-slate-500 font-medium">Manage and analyze all customer transactions.</p>
+          </div>
+          <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+            <div className="relative group flex-1 md:w-80">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-primary transition-colors" size={18} />
+              <input 
+                type="text"
+                placeholder="Search ID or Customer..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-12 pr-4 py-4 bg-white border border-slate-100 rounded-2xl font-bold shadow-sm focus:ring-2 focus:ring-brand-primary outline-none transition-all"
+              />
+            </div>
+            <button 
+              onClick={() => setIsReportMode(!isReportMode)}
+              className={cn(
+                "px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-sm border",
+                isReportMode 
+                  ? "bg-brand-primary text-white border-brand-primary" 
+                  : "bg-white text-slate-600 border-slate-100 hover:bg-slate-50"
+              )}
+            >
+              <BarChart2 size={18} /> {isReportMode ? "Exit Report" : "Analytics"}
+            </button>
+          </div>
         </div>
-        <div className="relative w-full md:w-80 group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-primary transition-colors" size={18} />
-          <input 
-            type="text"
-            placeholder="Search by ID or Customer..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-white border border-slate-100 rounded-2xl font-bold shadow-sm focus:ring-2 focus:ring-brand-primary outline-none transition-all"
-          />
-        </div>
+
+        {isReportMode && (
+          <div className="bg-slate-900 p-6 rounded-[2rem] shadow-xl shadow-slate-200/50 flex flex-col md:flex-row items-end justify-between gap-4 animate-in fade-in slide-in-from-top-2">
+            <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">From Date</label>
+                <div className="relative">
+                  <CalendarDays className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                  <input type="date" value={dateRange.from} onChange={(e) => setDateRange({...dateRange, from: e.target.value})} className="pl-12 pr-4 py-3 bg-white/10 text-white rounded-xl font-bold border border-white/10 outline-none focus:border-brand-primary color-scheme-dark w-full md:w-48" />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">To Date</label>
+                <div className="relative">
+                  <CalendarDays className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                  <input type="date" value={dateRange.to} onChange={(e) => setDateRange({...dateRange, to: e.target.value})} className="pl-12 pr-4 py-3 bg-white/10 text-white rounded-xl font-bold border border-white/10 outline-none focus:border-brand-primary color-scheme-dark w-full md:w-48" />
+                </div>
+              </div>
+            </div>
+            <button onClick={handleExportCSV} className="w-full md:w-auto px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-900 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-sm">
+              <Download size={16} /> Export CSV
+            </button>
+          </div>
+        )}
       </header>
 
       {filteredOrders.length === 0 ? (
@@ -87,85 +181,165 @@ export const OrderManagement = () => {
         </div>
       ) : (
         <>
-          {/* DESKTOP VIEW */}
-          <div className="hidden md:block bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+          <div className="hidden md:block bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden transition-all duration-500">
             <div className="overflow-x-auto">
               <table className="w-full text-left whitespace-nowrap">
                 <thead className="bg-slate-50/50 border-b border-slate-100">
                   <tr>
-                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Order ID</th>
-                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer</th>
+                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Order Info</th>
+                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer & Address</th>
+                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Schedule</th>
                     <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Est. Amount</th>
+                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
                     <th className="p-6"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {filteredOrders.map((order: any) => (
-                    <tr key={order.id} className="hover:bg-slate-50/50 transition-colors group">
-                      <td className="p-6 font-black text-slate-400">{formatOrderId(order.id)}</td>
-                      <td className="p-6">
-                        <p className="font-bold text-slate-900">{order.customer?.full_name || 'Unknown User'}</p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase">{order.customer?.mobile || 'No Phone'}</p>
-                      </td>
-                      <td className="p-6"><StatusBadge status={order.status} /></td>
-                      <td className="p-6 font-black text-slate-900">AED {order.estimated_price?.toFixed(2) || '0.00'}</td>
-                      <td className="p-6 text-right">
-                        <button 
-                          onClick={() => {
-                            const orderCopy = JSON.parse(JSON.stringify(order));
-                            orderCopy.items = orderCopy.items || [];
-                            setEditingOrder(orderCopy);
-                          }}
-                          className="p-3 bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white rounded-xl transition-all shadow-sm group-hover:bg-brand-primary group-hover:text-white"
-                        >
-                          <Edit3 size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredOrders.map((order: any) => {
+                    const displayPrice = order.status === 'NEW_ORDER' ? order.estimated_price : (order.final_price || order.estimated_price);
+                    return (
+                      <tr key={order.id} className="hover:bg-slate-50/50 transition-colors group">
+                        <td className="p-6 align-top">
+                          <p className="font-black text-slate-900">{formatOrderId(order.id)}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">
+                            {formatSafeDate(order.created_at || order.pickup_date)}
+                          </p>
+                          
+                          {/* NEW: VISUAL REMARKS PREVIEW */}
+                          {order.notes && (
+                            <div className="mt-3 flex items-start gap-1.5 text-brand-primary bg-brand-primary/5 p-2 rounded-xl border border-brand-primary/10 max-w-[200px]">
+                              <StickyNote size={12} className="shrink-0 mt-0.5" />
+                              <p className="text-[9px] font-black leading-tight uppercase tracking-tight">{order.notes}</p>
+                            </div>
+                          )}
+
+                          {order.hanger_needed && (
+                            <span className="inline-block mt-2 text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                              HANGER REQ
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="p-6 align-top">
+                          <p className="font-bold text-slate-900">{order.customer?.full_name || 'Unknown User'}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase">{order.customer?.mobile || 'No Phone'}</p>
+                          {isReportMode && (
+                            <p className="text-[10px] font-bold text-slate-500 mt-1 flex items-center gap-1">
+                              {order.customer?.building_name || 'N/A'}, Flat {order.customer?.flat_number || 'N/A'}
+                            </p>
+                          )}
+                        </td>
+
+                        <td className="p-6 align-top">
+                          <div className="flex flex-col gap-1.5">
+                            <p className="text-[10px] font-bold text-slate-500 flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                              <span className="w-8">Pick:</span> 
+                              {order.pickup_date ? formatSafeDate(order.pickup_date, 'MMM dd') : 'N/A'} @ {order.pickup_time ? getPickupWindow(order.pickup_time) : 'N/A'}
+                            </p>
+                            <p className="text-[10px] font-bold text-slate-500 flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                              <span className="w-8">Drop:</span> 
+                              {order.expected_delivery_date ? formatSafeDate(order.expected_delivery_date, 'MMM dd') : 'TBD'} 
+                              {order.expected_delivery_time ? ` @ ${formatTimeTo12h(order.expected_delivery_time)}` : ''}
+                            </p>
+                          </div>
+                        </td>
+
+                        <td className="p-6 align-top"><StatusBadge status={order.status} /></td>
+
+                        <td className="p-6 text-right align-top">
+                          <p className="font-black text-slate-900 text-lg">AED {displayPrice?.toFixed(2) || '0.00'}</p>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
+                            {order.status === 'NEW_ORDER' ? 'Estimated' : 'Final'}
+                          </p>
+                        </td>
+
+                        <td className="p-6 text-right align-top">
+                          <button 
+                            onClick={() => {
+                              const orderCopy = JSON.parse(JSON.stringify(order));
+                              orderCopy.items = orderCopy.items || [];
+                              setEditingOrder(orderCopy);
+                            }}
+                            className="p-3 bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white rounded-xl transition-all shadow-sm group-hover:bg-brand-primary group-hover:text-white"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </div>
 
-          {/* MOBILE VIEW */}
           <div className="grid grid-cols-1 gap-4 md:hidden">
-            {filteredOrders.map((order: any) => (
-              <div key={order.id} className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col gap-4">
-                <div className="flex justify-between items-start">
-                   <span className="font-black text-slate-400 bg-slate-50 px-3 py-1 rounded-lg text-xs">{formatOrderId(order.id)}</span>
-                   <StatusBadge status={order.status} />
-                </div>
-                
-                <div className="bg-slate-50 p-4 rounded-2xl">
-                  <p className="font-bold text-slate-900">{order.customer?.full_name || 'Unknown User'}</p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{order.customer?.mobile || 'No Phone'}</p>
-                </div>
-                
-                <div className="flex justify-between items-center mt-1">
-                  <div>
-                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Est. Amount</p>
-                    <p className="font-black text-slate-900 text-lg leading-tight mt-0.5">AED {order.estimated_price?.toFixed(2) || '0.00'}</p>
+            {filteredOrders.map((order: any) => {
+              const displayPrice = order.status === 'NEW_ORDER' ? order.estimated_price : (order.final_price || order.estimated_price);
+              return (
+                <div key={order.id} className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col gap-4">
+                  <div className="flex justify-between items-start">
+                     <div className="flex flex-col gap-1">
+                       <span className="font-black text-slate-400 bg-slate-50 px-3 py-1 rounded-lg text-xs w-max">{formatOrderId(order.id)}</span>
+                       {order.hanger_needed && <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Hanger Req.</span>}
+                     </div>
+                     <StatusBadge status={order.status} />
                   </div>
-                  <button
-                    onClick={() => {
-                      const orderCopy = JSON.parse(JSON.stringify(order));
-                      orderCopy.items = orderCopy.items || [];
-                      setEditingOrder(orderCopy);
-                    }}
-                    className="px-5 py-3 bg-slate-900 text-white hover:bg-brand-primary rounded-xl transition-all shadow-sm flex items-center gap-2 text-[10px] font-black uppercase tracking-widest active:scale-95"
-                  >
-                    <Edit3 size={14} /> Edit
-                  </button>
+                  
+                  {/* NEW: MOBILE REMARKS BLOCK */}
+                  {order.notes && (
+                    <div className="bg-brand-primary/5 border border-brand-primary/10 p-4 rounded-2xl flex items-start gap-3">
+                      <StickyNote className="text-brand-primary shrink-0" size={16} />
+                      <p className="text-[10px] font-black uppercase text-brand-primary leading-tight">{order.notes}</p>
+                    </div>
+                  )}
+
+                  <div className="bg-slate-50 p-4 rounded-2xl">
+                    <p className="font-bold text-slate-900">{order.customer?.full_name || 'Unknown User'}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{order.customer?.mobile || 'No Phone'}</p>
+                    {isReportMode && (
+                      <p className="text-[10px] font-bold text-slate-500 mt-1.5 pt-1.5 border-t border-slate-200">
+                        {order.customer?.building_name || 'N/A'}, Flat {order.customer?.flat_number || 'N/A'}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                     <div>
+                       <p className="text-[9px] font-black text-amber-500 uppercase">Pickup</p>
+                       <p className="text-[10px] font-bold text-slate-700">{order.pickup_date ? formatSafeDate(order.pickup_date, 'MMM dd') : 'N/A'}</p>
+                     </div>
+                     <div>
+                       <p className="text-[9px] font-black text-emerald-500 uppercase">Delivery</p>
+                       <p className="text-[10px] font-bold text-slate-700">{order.expected_delivery_date ? formatSafeDate(order.expected_delivery_date, 'MMM dd') : 'TBD'}</p>
+                     </div>
+                  </div>
+                  
+                  <div className="flex justify-between items-center mt-1">
+                    <div>
+                      <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Amount ({order.status === 'NEW_ORDER' ? 'Est.' : 'Final'})</p>
+                      <p className="font-black text-slate-900 text-lg leading-tight mt-0.5">AED {displayPrice?.toFixed(2) || '0.00'}</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const orderCopy = JSON.parse(JSON.stringify(order));
+                        orderCopy.items = orderCopy.items || [];
+                        setEditingOrder(orderCopy);
+                      }}
+                      className="px-5 py-3 bg-slate-900 text-white hover:bg-brand-primary rounded-xl transition-all shadow-sm flex items-center gap-2 text-[10px] font-black uppercase tracking-widest active:scale-95"
+                    >
+                      <Edit3 size={14} /> Edit
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
 
-      {/* GOD MODE EDIT MODAL */}
       {editingOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-[2.5rem] w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl space-y-0">
@@ -181,6 +355,20 @@ export const OrderManagement = () => {
             </div>
 
             <div className="p-6 space-y-6">
+              
+              {/* NEW: PROMINENT INSTRUCTION BOX IN MODAL */}
+              {editingOrder.notes && (
+                <div className="bg-amber-50 border border-amber-200 p-5 rounded-[2rem] flex items-start gap-4 animate-in slide-in-from-top-2 duration-300">
+                  <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center text-amber-600 shadow-sm shrink-0">
+                    <StickyNote size={20} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-1">Customer Remarks</p>
+                    <p className="text-sm font-bold text-slate-900 leading-relaxed">{editingOrder.notes}</p>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Force Status</label>
                 <select 
@@ -209,7 +397,6 @@ export const OrderManagement = () => {
                   ) : (
                     editingOrder.items.map((i: any, index: number) => {
                       const displayQty = i.final_quantity || i.estimated_quantity || 0;
-                      // Display Name combines Item + Category
                       const itemName = i.item?.name || 'Unknown Item';
                       const categoryName = i.service_category?.name || 'Unknown Service';
 
@@ -255,23 +442,16 @@ export const OrderManagement = () => {
                     onChange={(e) => {
                       const compositeKey = e.target.value;
                       if (!compositeKey) return;
-                      
                       const [itemIdStr, catIdStr] = compositeKey.split('_');
                       const selectedItemId = parseInt(itemIdStr);
                       const selectedCatId = parseInt(catIdStr);
-
-                      // Find the exact matrix option
                       const matrixMatch = matrixOptions.find(o => 
                         o.item_id === selectedItemId && o.service_category_id === selectedCatId
                       );
-                      
-                      // Check for duplicates
                       if (editingOrder.items.some((oi: any) => oi.item_id === selectedItemId && oi.service_category_id === selectedCatId)) {
                         toast.error(`This exact service is already in the order. Please increase its quantity instead.`);
                         return; 
                       }
-                      
-                      // Add new item with UI display mocks
                       const newItem = { 
                         item_id: selectedItemId, 
                         service_category_id: selectedCatId,
@@ -280,7 +460,6 @@ export const OrderManagement = () => {
                         item: { name: matrixMatch?.item_name },
                         service_category: { name: matrixMatch?.service_name }
                       };
-                      
                       setEditingOrder({ ...editingOrder, items: [...editingOrder.items, newItem] });
                     }}
                     value=""
@@ -298,7 +477,6 @@ export const OrderManagement = () => {
               <div className="pt-4">
                 <button 
                   onClick={() => {
-                    // UPDATED PAYLOAD: Strictly enforce service_category_id
                     const payloadItems = editingOrder.items
                       .map((i: any) => ({ 
                         item_id: i.item_id, 
@@ -330,6 +508,27 @@ export const OrderManagement = () => {
   );
 };
 
+const getPickupWindow = (timeStr?: string) => {
+  if (!timeStr) return "Pending";
+  try {
+    const [hourStr, minStr] = timeStr.split(':');
+    const hour = parseInt(hourStr, 10);
+    const min = parseInt(minStr, 10);
+    const formatAMPM = (h: number, m: number) => {
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const displayH = h % 12 || 12;
+      const displayM = m < 10 ? `0${m}` : m;
+      return `${displayH}:${displayM} ${ampm}`;
+    };
+    const startTime = formatAMPM(hour, min);
+    const endHour = (hour + 1) % 24;
+    const endTime = formatAMPM(endHour, min);
+    return `${startTime} - ${endTime}`;
+  } catch (e) {
+    return timeStr; 
+  }
+};
+
 const OrderManagementSkeleton = () => (
   <div className="space-y-8 animate-pulse p-4">
     <div className="h-12 w-48 bg-slate-100 rounded-xl" />
@@ -355,7 +554,1132 @@ const StatusBadge = ({ status }: { status: string }) => {
   );
 };
 // // src/features/admin/pages/OrderManagement.tsx
-// import { useState } from 'react';
+// import { useState, useMemo } from 'react';
+// import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+// import { adminService } from '../api/admin.service';
+// import { formatOrderId, formatSafeDate, formatTimeTo12h } from '@/utils/formatters';
+// import { Search, Loader2, Edit3, Package, X, MinusCircle, AlertCircle, Download, BarChart2, CalendarDays, Clock } from 'lucide-react';
+// import { toast } from 'sonner';
+// import { cn } from '@/utils/cn';
+
+// export const OrderManagement = () => {
+//   const [search, setSearch] = useState('');
+//   const [editingOrder, setEditingOrder] = useState<any>(null); 
+  
+//   // Report Mode States
+//   const [isReportMode, setIsReportMode] = useState(false);
+//   const [dateRange, setDateRange] = useState({ from: '', to: '' });
+
+//   const queryClient = useQueryClient();
+
+//   const { data: orders = [], isLoading } = useQuery({
+//     queryKey: ['adminAllOrders'],
+//     queryFn: adminService.getAllOrders,
+//     refetchInterval: 15000, // <-- NEW: Live background polling every 15 seconds
+//   });
+
+//   const { data: masterItems = [] } = useQuery({
+//     queryKey: ['serviceItems'],
+//     queryFn: adminService.getItems,
+//     enabled: !!editingOrder, 
+//   });
+
+//   const matrixOptions = useMemo(() => {
+//     const options: any[] = [];
+//     masterItems.forEach((item: any) => {
+//       item.services?.forEach((svc: any) => {
+//         options.push({
+//           item_id: item.id,
+//           item_name: item.name,
+//           service_category_id: svc.service_category_id,
+//           service_name: svc.category?.name || "Service",
+//           price: svc.price
+//         });
+//       });
+//     });
+//     return options;
+//   }, [masterItems]);
+
+//   const updateMutation = useMutation({
+//     mutationFn: ({ id, data }: { id: number, data: any }) => adminService.adminUpdateOrder(id, data),
+//     onSuccess: () => {
+//       queryClient.invalidateQueries({ queryKey: ['adminAllOrders'] });
+//       toast.success("Order updated and financials recalculated!");
+//       setEditingOrder(null);
+//     },
+//     onError: (err: any) => {
+//       toast.error(err.response?.data?.detail || "Failed to update order. Check connection.");
+//     }
+//   });
+
+//   // Combined Filter Logic (Search + Date Range)
+//   const filteredOrders = useMemo(() => {
+//     return orders.filter((o: any) => {
+//       // 1. Text Search
+//       const searchLower = search.toLowerCase();
+//       const customerName = o.customer?.full_name?.toLowerCase() || '';
+//       const orderIdStr = o.id?.toString() || '';
+//       const matchesSearch = customerName.includes(searchLower) || orderIdStr.includes(searchLower);
+
+//       // 2. Date Filter
+//       let matchesDate = true;
+//       if (isReportMode && (dateRange.from || dateRange.to)) {
+//         const orderDate = new Date(o.created_at || o.pickup_date);
+//         orderDate.setHours(0, 0, 0, 0); 
+        
+//         if (dateRange.from) {
+//           const fromDate = new Date(dateRange.from);
+//           fromDate.setHours(0, 0, 0, 0);
+//           if (orderDate < fromDate) matchesDate = false;
+//         }
+//         if (dateRange.to) {
+//           const toDate = new Date(dateRange.to);
+//           toDate.setHours(0, 0, 0, 0);
+//           if (orderDate > toDate) matchesDate = false;
+//         }
+//       }
+
+//       return matchesSearch && matchesDate;
+//     });
+//   }, [orders, search, isReportMode, dateRange]);
+
+//   // Pure JS CSV Export Function
+//   const handleExportCSV = () => {
+//     if (filteredOrders.length === 0) return toast.error("No data to export");
+
+//     const headers = [
+//       "Order Number", "Order Date", "Customer Name", "Mobile Number", 
+//       "Building Name", "Flat Number", "Amount (AED)", "Status", "Hanger Needed"
+//     ];
+
+//     const escapeCSV = (val: any) => `"${String(val || '').replace(/"/g, '""')}"`;
+
+//     const csvRows = filteredOrders.map((o: any) => {
+//       const displayPrice = o.status === 'NEW_ORDER' ? o.estimated_price : o.final_price;
+//       const orderDate = new Date(o.created_at || o.pickup_date).toLocaleDateString();
+
+//       return [
+//         formatOrderId(o.id),
+//         orderDate,
+//         o.customer?.full_name || 'Guest',
+//         o.customer?.mobile || 'N/A',
+//         o.customer?.building_name || 'N/A',
+//         o.customer?.flat_number || 'N/A',
+//         displayPrice?.toFixed(2) || '0.00',
+//         o.status,
+//         o.hanger_needed ? "Yes" : "No"
+//       ].map(escapeCSV).join(',');
+//     });
+
+//     const csvContent = [headers.join(','), ...csvRows].join('\n');
+//     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+//     const link = document.createElement('a');
+//     link.href = URL.createObjectURL(blob);
+//     link.download = `Orders_Report_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
+//     link.click();
+//   };
+
+//   if (isLoading) return <OrderManagementSkeleton />;
+
+//   return (
+//     <div className="space-y-8 pb-20 relative">
+//       <header className="flex flex-col gap-6">
+//         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+//           <div>
+//             <h1 className="text-4xl font-black text-slate-900 tracking-tighter">Order Vault</h1>
+//             <p className="text-slate-500 font-medium">Manage and analyze all customer transactions.</p>
+//           </div>
+//           <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+//             <div className="relative group flex-1 md:w-80">
+//               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-primary transition-colors" size={18} />
+//               <input 
+//                 type="text"
+//                 placeholder="Search ID or Customer..."
+//                 value={search}
+//                 onChange={(e) => setSearch(e.target.value)}
+//                 className="w-full pl-12 pr-4 py-4 bg-white border border-slate-100 rounded-2xl font-bold shadow-sm focus:ring-2 focus:ring-brand-primary outline-none transition-all"
+//               />
+//             </div>
+//             <button 
+//               onClick={() => setIsReportMode(!isReportMode)}
+//               className={cn(
+//                 "px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-sm border",
+//                 isReportMode 
+//                   ? "bg-brand-primary text-white border-brand-primary" 
+//                   : "bg-white text-slate-600 border-slate-100 hover:bg-slate-50"
+//               )}
+//             >
+//               <BarChart2 size={18} /> {isReportMode ? "Exit Report" : "Analytics"}
+//             </button>
+//           </div>
+//         </div>
+
+//         {/* REPORT MODE CONTROLS */}
+//         {isReportMode && (
+//           <div className="bg-slate-900 p-6 rounded-[2rem] shadow-xl shadow-slate-200/50 flex flex-col md:flex-row items-end justify-between gap-4 animate-in fade-in slide-in-from-top-2">
+//             <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+//               <div>
+//                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">From Date</label>
+//                 <div className="relative">
+//                   <CalendarDays className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+//                   <input type="date" value={dateRange.from} onChange={(e) => setDateRange({...dateRange, from: e.target.value})} className="pl-12 pr-4 py-3 bg-white/10 text-white rounded-xl font-bold border border-white/10 outline-none focus:border-brand-primary color-scheme-dark w-full md:w-48" />
+//                 </div>
+//               </div>
+//               <div>
+//                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">To Date</label>
+//                 <div className="relative">
+//                   <CalendarDays className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+//                   <input type="date" value={dateRange.to} onChange={(e) => setDateRange({...dateRange, to: e.target.value})} className="pl-12 pr-4 py-3 bg-white/10 text-white rounded-xl font-bold border border-white/10 outline-none focus:border-brand-primary color-scheme-dark w-full md:w-48" />
+//                 </div>
+//               </div>
+//             </div>
+            
+//             <button 
+//               onClick={handleExportCSV}
+//               className="w-full md:w-auto px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-900 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-sm"
+//             >
+//               <Download size={16} /> Export CSV
+//             </button>
+//           </div>
+//         )}
+//       </header>
+
+//       {filteredOrders.length === 0 ? (
+//         <div className="bg-white rounded-[3rem] py-24 text-center border-2 border-dashed border-slate-100 shadow-sm">
+//            <Package className="mx-auto text-slate-200 mb-4" size={56} />
+//            <p className="font-black text-slate-400 uppercase tracking-widest text-xs">No Orders Found</p>
+//         </div>
+//       ) : (
+//         <>
+//           {/* DESKTOP VIEW */}
+//           <div className="hidden md:block bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden transition-all duration-500">
+//             <div className="overflow-x-auto">
+//               <table className="w-full text-left whitespace-nowrap">
+//                 <thead className="bg-slate-50/50 border-b border-slate-100">
+//                   <tr>
+//                     <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Order Info</th>
+//                     <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer & Address</th>
+//                     <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Schedule</th>
+//                     <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+//                     <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
+//                     <th className="p-6"></th> {/* NEW: Always visible for the edit button */}
+//                   </tr>
+//                 </thead>
+//                 <tbody className="divide-y divide-slate-50">
+//                   {filteredOrders.map((order: any) => {
+//                     const displayPrice = order.status === 'NEW_ORDER' ? order.estimated_price : (order.final_price || order.estimated_price);
+                    
+//                     return (
+//                       <tr key={order.id} className="hover:bg-slate-50/50 transition-colors group">
+                        
+//                         <td className="p-6">
+//                           <p className="font-black text-slate-900">{formatOrderId(order.id)}</p>
+//                           <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">
+//                             {formatSafeDate(order.created_at || order.pickup_date)}
+//                           </p>
+//                           {order.hanger_needed && (
+//                             <span className="inline-block mt-2 text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+//                               HANGER REQ
+//                             </span>
+//                           )}
+//                         </td>
+
+//                         <td className="p-6">
+//                           <p className="font-bold text-slate-900">{order.customer?.full_name || 'Unknown User'}</p>
+//                           <p className="text-[10px] font-bold text-slate-400 uppercase">{order.customer?.mobile || 'No Phone'}</p>
+//                           {isReportMode && (
+//                             <p className="text-[10px] font-bold text-slate-500 mt-1 flex items-center gap-1">
+//                               {order.customer?.building_name || 'N/A'}, Flat {order.customer?.flat_number || 'N/A'}
+//                             </p>
+//                           )}
+//                         </td>
+
+//                         <td className="p-6">
+//                           <div className="flex flex-col gap-1.5">
+//                             <p className="text-[10px] font-bold text-slate-500 flex items-center gap-1.5">
+//                               <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+//                               <span className="w-8">Pick:</span> 
+//                               {order.pickup_date ? formatSafeDate(order.pickup_date, 'MMM dd') : 'N/A'} @ {order.pickup_time ? getPickupWindow(order.pickup_time) : 'N/A'}
+//                             </p>
+//                             <p className="text-[10px] font-bold text-slate-500 flex items-center gap-1.5">
+//                               <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+//                               <span className="w-8">Drop:</span> 
+//                               {order.expected_delivery_date ? formatSafeDate(order.expected_delivery_date, 'MMM dd') : 'TBD'} 
+//                               {order.expected_delivery_time ? ` @ ${formatTimeTo12h(order.expected_delivery_time)}` : ''}
+//                             </p>
+//                           </div>
+//                         </td>
+
+//                         <td className="p-6"><StatusBadge status={order.status} /></td>
+
+//                         <td className="p-6 text-right">
+//                           <p className="font-black text-slate-900 text-lg">AED {displayPrice?.toFixed(2) || '0.00'}</p>
+//                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
+//                             {order.status === 'NEW_ORDER' ? 'Estimated' : 'Final'}
+//                           </p>
+//                         </td>
+
+//                         {/* NEW: Edit Action Always Available */}
+//                         <td className="p-6 text-right">
+//                           <button 
+//                             onClick={() => {
+//                               const orderCopy = JSON.parse(JSON.stringify(order));
+//                               orderCopy.items = orderCopy.items || [];
+//                               setEditingOrder(orderCopy);
+//                             }}
+//                             className="p-3 bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white rounded-xl transition-all shadow-sm group-hover:bg-brand-primary group-hover:text-white"
+//                           >
+//                             <Edit3 size={16} />
+//                           </button>
+//                         </td>
+//                       </tr>
+//                     );
+//                   })}
+//                 </tbody>
+//               </table>
+//             </div>
+//           </div>
+
+//           {/* MOBILE VIEW */}
+//           <div className="grid grid-cols-1 gap-4 md:hidden">
+//             {filteredOrders.map((order: any) => {
+//               const displayPrice = order.status === 'NEW_ORDER' ? order.estimated_price : (order.final_price || order.estimated_price);
+              
+//               return (
+//                 <div key={order.id} className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col gap-4">
+//                   <div className="flex justify-between items-start">
+//                      <div className="flex flex-col gap-1">
+//                        <span className="font-black text-slate-400 bg-slate-50 px-3 py-1 rounded-lg text-xs w-max">{formatOrderId(order.id)}</span>
+//                        {order.hanger_needed && <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Hanger Req.</span>}
+//                      </div>
+//                      <StatusBadge status={order.status} />
+//                   </div>
+                  
+//                   <div className="bg-slate-50 p-4 rounded-2xl">
+//                     <p className="font-bold text-slate-900">{order.customer?.full_name || 'Unknown User'}</p>
+//                     <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{order.customer?.mobile || 'No Phone'}</p>
+//                     {isReportMode && (
+//                       <p className="text-[10px] font-bold text-slate-500 mt-1.5 pt-1.5 border-t border-slate-200">
+//                         {order.customer?.building_name || 'N/A'}, Flat {order.customer?.flat_number || 'N/A'}
+//                       </p>
+//                     )}
+//                   </div>
+
+//                   <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
+//                      <div>
+//                        <p className="text-[9px] font-black text-amber-500 uppercase">Pickup</p>
+//                        <p className="text-[10px] font-bold text-slate-700">{order.pickup_date ? formatSafeDate(order.pickup_date, 'MMM dd') : 'N/A'}</p>
+//                      </div>
+//                      <div>
+//                        <p className="text-[9px] font-black text-emerald-500 uppercase">Delivery</p>
+//                        <p className="text-[10px] font-bold text-slate-700">{order.expected_delivery_date ? formatSafeDate(order.expected_delivery_date, 'MMM dd') : 'TBD'}</p>
+//                      </div>
+//                   </div>
+                  
+//                   <div className="flex justify-between items-center mt-1">
+//                     <div>
+//                       <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Amount ({order.status === 'NEW_ORDER' ? 'Est.' : 'Final'})</p>
+//                       <p className="font-black text-slate-900 text-lg leading-tight mt-0.5">AED {displayPrice?.toFixed(2) || '0.00'}</p>
+//                     </div>
+//                     {/* NEW: Edit Action Always Available on Mobile */}
+//                     <button
+//                       onClick={() => {
+//                         const orderCopy = JSON.parse(JSON.stringify(order));
+//                         orderCopy.items = orderCopy.items || [];
+//                         setEditingOrder(orderCopy);
+//                       }}
+//                       className="px-5 py-3 bg-slate-900 text-white hover:bg-brand-primary rounded-xl transition-all shadow-sm flex items-center gap-2 text-[10px] font-black uppercase tracking-widest active:scale-95"
+//                     >
+//                       <Edit3 size={14} /> Edit
+//                     </button>
+//                   </div>
+//                 </div>
+//               );
+//             })}
+//           </div>
+//         </>
+//       )}
+
+//       {/* GOD MODE EDIT MODAL (Unchanged and Safely Preserved) */}
+//       {editingOrder && (
+//         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+//           <div className="bg-white rounded-[2.5rem] w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl space-y-0">
+            
+//             <div className="sticky top-0 bg-white/80 backdrop-blur-md p-6 border-b border-slate-100 flex justify-between items-center z-10">
+//               <div>
+//                 <h3 className="text-xl font-black text-slate-900">Modify Order</h3>
+//                 <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest">{formatOrderId(editingOrder.id)}</p>
+//               </div>
+//               <button onClick={() => setEditingOrder(null)} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors">
+//                 <X size={20} className="text-slate-500" />
+//               </button>
+//             </div>
+
+//             <div className="p-6 space-y-6">
+//               <div>
+//                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Force Status</label>
+//                 <select 
+//                   className="w-full p-4 bg-slate-50 rounded-2xl font-bold text-sm outline-none border border-slate-100 mt-1 focus:ring-2 focus:ring-brand-primary transition-all"
+//                   value={editingOrder.status}
+//                   onChange={(e) => setEditingOrder({...editingOrder, status: e.target.value})}
+//                 >
+//                   <option value="NEW_ORDER">New Order (Pending)</option>
+//                   <option value="PICKED_UP">Picked Up (In Facility)</option>
+//                   <option value="DELIVERED">Delivered (Completed)</option>
+//                   <option value="CANCELLED">Cancelled</option>
+//                 </select>
+//               </div>
+
+//               <div className="bg-slate-50 p-5 rounded-[2rem] border border-slate-100 space-y-4">
+//                 <div className="flex justify-between items-center">
+//                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Order Contents</p>
+//                   <span className="text-[10px] font-bold text-amber-500 flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-md">
+//                     <AlertCircle size={12}/> Affects Pricing
+//                   </span>
+//                 </div>
+                
+//                 <div className="space-y-2">
+//                   {editingOrder.items.length === 0 ? (
+//                     <p className="text-xs font-bold text-slate-400 text-center py-4">No items currently in order.</p>
+//                   ) : (
+//                     editingOrder.items.map((i: any, index: number) => {
+//                       const displayQty = i.final_quantity || i.estimated_quantity || 0;
+//                       const itemName = i.item?.name || 'Unknown Item';
+//                       const categoryName = i.service_category?.name || 'Unknown Service';
+
+//                       return (
+//                         <div key={index} className="flex justify-between items-center bg-white p-3 rounded-2xl border border-slate-100 shadow-sm transition-all hover:border-brand-primary/20">
+//                           <div className="flex flex-col">
+//                             <span className="text-xs font-bold text-slate-700">{itemName}</span>
+//                             <span className="text-[10px] font-black text-brand-primary uppercase">{categoryName}</span>
+//                           </div>
+//                           <div className="flex items-center gap-2">
+//                             <input 
+//                               type="number" 
+//                               min="0"
+//                               value={displayQty === 0 ? '' : displayQty} 
+//                               placeholder="0"
+//                               onChange={(e) => {
+//                                 const val = parseInt(e.target.value) || 0;
+//                                 const newItems = [...editingOrder.items];
+//                                 newItems[index] = { ...newItems[index], final_quantity: val, estimated_quantity: val };
+//                                 setEditingOrder({ ...editingOrder, items: newItems });
+//                               }}
+//                               className="w-16 p-2 bg-slate-50 rounded-lg text-center font-black text-sm outline-none focus:ring-2 focus:ring-brand-primary transition-all"
+//                             />
+//                             <button 
+//                               onClick={() => {
+//                                 const newItems = editingOrder.items.filter((_: any, idx: number) => idx !== index);
+//                                 setEditingOrder({ ...editingOrder, items: newItems });
+//                               }}
+//                               className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-all"
+//                             >
+//                               <MinusCircle size={16} />
+//                             </button>
+//                           </div>
+//                         </div>
+//                       );
+//                     })
+//                   )}
+//                 </div>
+
+//                 <div className="pt-2">
+//                   <select 
+//                     className="w-full p-4 rounded-xl border-2 border-dashed border-slate-200 bg-white text-xs font-bold text-slate-500 outline-none hover:border-brand-primary/40 focus:border-brand-primary transition-colors cursor-pointer appearance-none"
+//                     onChange={(e) => {
+//                       const compositeKey = e.target.value;
+//                       if (!compositeKey) return;
+                      
+//                       const [itemIdStr, catIdStr] = compositeKey.split('_');
+//                       const selectedItemId = parseInt(itemIdStr);
+//                       const selectedCatId = parseInt(catIdStr);
+
+//                       const matrixMatch = matrixOptions.find(o => 
+//                         o.item_id === selectedItemId && o.service_category_id === selectedCatId
+//                       );
+                      
+//                       if (editingOrder.items.some((oi: any) => oi.item_id === selectedItemId && oi.service_category_id === selectedCatId)) {
+//                         toast.error(`This exact service is already in the order. Please increase its quantity instead.`);
+//                         return; 
+//                       }
+                      
+//                       const newItem = { 
+//                         item_id: selectedItemId, 
+//                         service_category_id: selectedCatId,
+//                         final_quantity: 1, 
+//                         estimated_quantity: 1, 
+//                         item: { name: matrixMatch?.item_name },
+//                         service_category: { name: matrixMatch?.service_name }
+//                       };
+                      
+//                       setEditingOrder({ ...editingOrder, items: [...editingOrder.items, newItem] });
+//                     }}
+//                     value=""
+//                   >
+//                     <option value="" disabled>+ Add service to order...</option>
+//                     {matrixOptions.map((opt: any) => (
+//                       <option key={`${opt.item_id}_${opt.service_category_id}`} value={`${opt.item_id}_${opt.service_category_id}`}>
+//                         {opt.item_name} - {opt.service_name} (AED {opt.price})
+//                       </option>
+//                     ))}
+//                   </select>
+//                 </div>
+//               </div>
+
+//               <div className="pt-4">
+//                 <button 
+//                   onClick={() => {
+//                     const payloadItems = editingOrder.items
+//                       .map((i: any) => ({ 
+//                         item_id: i.item_id, 
+//                         service_category_id: i.service_category_id,
+//                         final_quantity: i.final_quantity || i.estimated_quantity || 0 
+//                       }))
+//                       .filter((i: any) => i.final_quantity > 0); 
+
+//                     updateMutation.mutate({ 
+//                       id: editingOrder.id, 
+//                       data: { 
+//                         status: editingOrder.status,
+//                         items: payloadItems
+//                       } 
+//                     });
+//                   }}
+//                   disabled={updateMutation.isPending}
+//                   className="w-full py-5 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase tracking-widest text-xs shadow-xl shadow-slate-200 flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-70"
+//                 >
+//                   {updateMutation.isPending ? <Loader2 className="animate-spin" size={18}/> : "Save & Recalculate Price"}
+//                 </button>
+//               </div>
+
+//             </div>
+//           </div>
+//         </div>
+//       )}
+//     </div>
+//   );
+// };
+
+// // --- Helper Functions Preserved ---
+
+// const getPickupWindow = (timeStr?: string) => {
+//   if (!timeStr) return "Pending";
+//   try {
+//     const [hourStr, minStr] = timeStr.split(':');
+//     const hour = parseInt(hourStr, 10);
+//     const min = parseInt(minStr, 10);
+    
+//     const formatAMPM = (h: number, m: number) => {
+//       const ampm = h >= 12 ? 'PM' : 'AM';
+//       const displayH = h % 12 || 12;
+//       const displayM = m < 10 ? `0${m}` : m;
+//       return `${displayH}:${displayM} ${ampm}`;
+//     };
+
+//     const startTime = formatAMPM(hour, min);
+//     const endHour = (hour + 1) % 24;
+//     const endTime = formatAMPM(endHour, min);
+
+//     return `${startTime} - ${endTime}`;
+//   } catch (e) {
+//     return timeStr; 
+//   }
+// };
+
+// const OrderManagementSkeleton = () => (
+//   <div className="space-y-8 animate-pulse p-4">
+//     <div className="h-12 w-48 bg-slate-100 rounded-xl" />
+//     <div className="space-y-4">
+//       {[1, 2, 3, 4].map(i => (
+//         <div key={i} className="h-24 bg-white border border-slate-100 rounded-[2rem]" />
+//       ))}
+//     </div>
+//   </div>
+// );
+
+// const StatusBadge = ({ status }: { status: string }) => {
+//   const styles: any = {
+//     NEW_ORDER: "bg-amber-50 text-amber-600 border-amber-100",
+//     PICKED_UP: "bg-blue-50 text-blue-600 border-blue-100",
+//     DELIVERED: "bg-emerald-50 text-emerald-600 border-emerald-100",
+//     CANCELLED: "bg-red-50 text-red-600 border-red-100",
+//   };
+//   return (
+//     <span className={cn("px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border", styles[status])}>
+//       {status?.replace('_', ' ') || 'UNKNOWN'}
+//     </span>
+//   );
+// };
+
+// // src/features/admin/pages/OrderManagement.tsx
+// import { useState, useMemo } from 'react';
+// import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+// import { adminService } from '../api/admin.service';
+// import { formatOrderId, formatSafeDate, formatTimeTo12h } from '@/utils/formatters';
+// import { Search, Loader2, Edit3, Package, X, MinusCircle, AlertCircle, Download, BarChart2, CalendarDays, Clock } from 'lucide-react';
+// import { toast } from 'sonner';
+// import { cn } from '@/utils/cn';
+
+// export const OrderManagement = () => {
+//   const [search, setSearch] = useState('');
+//   const [editingOrder, setEditingOrder] = useState<any>(null); 
+  
+//   // NEW: Report Mode States
+//   const [isReportMode, setIsReportMode] = useState(false);
+//   const [dateRange, setDateRange] = useState({ from: '', to: '' });
+
+//   const queryClient = useQueryClient();
+
+//   const { data: orders = [], isLoading } = useQuery({
+//     queryKey: ['adminAllOrders'],
+//     queryFn: adminService.getAllOrders,
+//   });
+
+//   const { data: masterItems = [] } = useQuery({
+//     queryKey: ['serviceItems'],
+//     queryFn: adminService.getItems,
+//     enabled: !!editingOrder, 
+//   });
+
+//   const matrixOptions = useMemo(() => {
+//     const options: any[] = [];
+//     masterItems.forEach((item: any) => {
+//       item.services?.forEach((svc: any) => {
+//         options.push({
+//           item_id: item.id,
+//           item_name: item.name,
+//           service_category_id: svc.service_category_id,
+//           service_name: svc.category?.name || "Service",
+//           price: svc.price
+//         });
+//       });
+//     });
+//     return options;
+//   }, [masterItems]);
+
+//   const updateMutation = useMutation({
+//     mutationFn: ({ id, data }: { id: number, data: any }) => adminService.adminUpdateOrder(id, data),
+//     onSuccess: () => {
+//       queryClient.invalidateQueries({ queryKey: ['adminAllOrders'] });
+//       toast.success("Order updated and financials recalculated!");
+//       setEditingOrder(null);
+//     },
+//     onError: (err: any) => {
+//       toast.error(err.response?.data?.detail || "Failed to update order. Check connection.");
+//     }
+//   });
+
+//   // UPDATED: Combined Filter Logic (Search + Date Range)
+//   const filteredOrders = useMemo(() => {
+//     return orders.filter((o: any) => {
+//       // 1. Text Search
+//       const searchLower = search.toLowerCase();
+//       const customerName = o.customer?.full_name?.toLowerCase() || '';
+//       const orderIdStr = o.id?.toString() || '';
+//       const matchesSearch = customerName.includes(searchLower) || orderIdStr.includes(searchLower);
+
+//       // 2. Date Filter (Only apply if in report mode and dates are selected)
+//       let matchesDate = true;
+//       if (isReportMode && (dateRange.from || dateRange.to)) {
+//         const orderDate = new Date(o.created_at || o.pickup_date);
+//         orderDate.setHours(0, 0, 0, 0); // Normalize time for accurate day comparison
+        
+//         if (dateRange.from) {
+//           const fromDate = new Date(dateRange.from);
+//           fromDate.setHours(0, 0, 0, 0);
+//           if (orderDate < fromDate) matchesDate = false;
+//         }
+//         if (dateRange.to) {
+//           const toDate = new Date(dateRange.to);
+//           toDate.setHours(0, 0, 0, 0);
+//           if (orderDate > toDate) matchesDate = false;
+//         }
+//       }
+
+//       return matchesSearch && matchesDate;
+//     });
+//   }, [orders, search, isReportMode, dateRange]);
+
+//   // NEW: Pure JS CSV Export Function
+//   const handleExportCSV = () => {
+//     if (filteredOrders.length === 0) return toast.error("No data to export");
+
+//     const headers = [
+//       "Order Number", "Order Date", "Customer Name", "Mobile Number", 
+//       "Building Name", "Flat Number", "Amount (AED)", "Status", "Hanger Needed"
+//     ];
+
+//     const escapeCSV = (val: any) => `"${String(val || '').replace(/"/g, '""')}"`;
+
+//     const csvRows = filteredOrders.map((o: any) => {
+//       const displayPrice = o.status === 'NEW_ORDER' ? o.estimated_price : o.final_price;
+//       const orderDate = new Date(o.created_at || o.pickup_date).toLocaleDateString();
+
+//       return [
+//         formatOrderId(o.id),
+//         orderDate,
+//         o.customer?.full_name || 'Guest',
+//         o.customer?.mobile || 'N/A',
+//         o.customer?.building_name || 'N/A',
+//         o.customer?.flat_number || 'N/A',
+//         displayPrice?.toFixed(2) || '0.00',
+//         o.status,
+//         o.hanger_needed ? "Yes" : "No"
+//       ].map(escapeCSV).join(',');
+//     });
+
+//     const csvContent = [headers.join(','), ...csvRows].join('\n');
+//     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+//     const link = document.createElement('a');
+//     link.href = URL.createObjectURL(blob);
+//     link.download = `Orders_Report_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
+//     link.click();
+//   };
+
+//   if (isLoading) return <OrderManagementSkeleton />;
+
+//   return (
+//     <div className="space-y-8 pb-20 relative">
+//       <header className="flex flex-col gap-6">
+//         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+//           <div>
+//             <h1 className="text-4xl font-black text-slate-900 tracking-tighter">Order Vault</h1>
+//             <p className="text-slate-500 font-medium">Manage and analyze all customer transactions.</p>
+//           </div>
+//           <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+//             <div className="relative group flex-1 md:w-80">
+//               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-primary transition-colors" size={18} />
+//               <input 
+//                 type="text"
+//                 placeholder="Search ID or Customer..."
+//                 value={search}
+//                 onChange={(e) => setSearch(e.target.value)}
+//                 className="w-full pl-12 pr-4 py-4 bg-white border border-slate-100 rounded-2xl font-bold shadow-sm focus:ring-2 focus:ring-brand-primary outline-none transition-all"
+//               />
+//             </div>
+//             {/* Toggle Report Mode Button */}
+//             <button 
+//               onClick={() => setIsReportMode(!isReportMode)}
+//               className={cn(
+//                 "px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-sm border",
+//                 isReportMode 
+//                   ? "bg-brand-primary text-white border-brand-primary" 
+//                   : "bg-white text-slate-600 border-slate-100 hover:bg-slate-50"
+//               )}
+//             >
+//               <BarChart2 size={18} /> {isReportMode ? "Exit Report" : "Analytics"}
+//             </button>
+//           </div>
+//         </div>
+
+//         {/* REPORT MODE CONTROLS */}
+//         {isReportMode && (
+//           <div className="bg-slate-900 p-6 rounded-[2rem] shadow-xl shadow-slate-200/50 flex flex-col md:flex-row items-end justify-between gap-4 animate-in fade-in slide-in-from-top-2">
+//             <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+//               <div>
+//                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">From Date</label>
+//                 <div className="relative">
+//                   <CalendarDays className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+//                   <input type="date" value={dateRange.from} onChange={(e) => setDateRange({...dateRange, from: e.target.value})} className="pl-12 pr-4 py-3 bg-white/10 text-white rounded-xl font-bold border border-white/10 outline-none focus:border-brand-primary color-scheme-dark w-full md:w-48" />
+//                 </div>
+//               </div>
+//               <div>
+//                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block">To Date</label>
+//                 <div className="relative">
+//                   <CalendarDays className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+//                   <input type="date" value={dateRange.to} onChange={(e) => setDateRange({...dateRange, to: e.target.value})} className="pl-12 pr-4 py-3 bg-white/10 text-white rounded-xl font-bold border border-white/10 outline-none focus:border-brand-primary color-scheme-dark w-full md:w-48" />
+//                 </div>
+//               </div>
+//             </div>
+            
+//             <button 
+//               onClick={handleExportCSV}
+//               className="w-full md:w-auto px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-900 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-sm"
+//             >
+//               <Download size={16} /> Export CSV
+//             </button>
+//           </div>
+//         )}
+//       </header>
+
+//       {filteredOrders.length === 0 ? (
+//         <div className="bg-white rounded-[3rem] py-24 text-center border-2 border-dashed border-slate-100 shadow-sm">
+//            <Package className="mx-auto text-slate-200 mb-4" size={56} />
+//            <p className="font-black text-slate-400 uppercase tracking-widest text-xs">No Orders Found</p>
+//         </div>
+//       ) : (
+//         <>
+//           {/* DESKTOP VIEW */}
+//           <div className="hidden md:block bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden transition-all duration-500">
+//             <div className="overflow-x-auto">
+//               <table className="w-full text-left whitespace-nowrap">
+//                 <thead className="bg-slate-50/50 border-b border-slate-100">
+//                   <tr>
+//                     <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Order Info</th>
+//                     <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer & Address</th>
+//                     <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Schedule</th>
+//                     <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+//                     <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
+//                     {!isReportMode && <th className="p-6"></th>}
+//                   </tr>
+//                 </thead>
+//                 <tbody className="divide-y divide-slate-50">
+//                   {filteredOrders.map((order: any) => {
+//                     // PRICING FIX: Accurate Final Price Logic
+//                     const displayPrice = order.status === 'NEW_ORDER' ? order.estimated_price : (order.final_price || order.estimated_price);
+                    
+//                     return (
+//                       <tr key={order.id} className="hover:bg-slate-50/50 transition-colors group">
+                        
+//                         {/* 1. Order Info */}
+//                         <td className="p-6">
+//                           <p className="font-black text-slate-900">{formatOrderId(order.id)}</p>
+//                           <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">
+//                             {formatSafeDate(order.created_at || order.pickup_date)}
+//                           </p>
+//                           {order.hanger_needed && (
+//                             <span className="inline-block mt-2 text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+//                               HANGER REQ
+//                             </span>
+//                           )}
+//                         </td>
+
+//                         {/* 2. Customer Detail (Expands dynamically in report mode) */}
+//                         <td className="p-6">
+//                           <p className="font-bold text-slate-900">{order.customer?.full_name || 'Unknown User'}</p>
+//                           <p className="text-[10px] font-bold text-slate-400 uppercase">{order.customer?.mobile || 'No Phone'}</p>
+//                           {isReportMode && (
+//                             <p className="text-[10px] font-bold text-slate-500 mt-1 flex items-center gap-1">
+//                               {order.customer?.building_name || 'N/A'}, Flat {order.customer?.flat_number || 'N/A'}
+//                             </p>
+//                           )}
+//                         </td>
+
+//                         {/* 3. Schedule (Pickup & Delivery Times added) */}
+//                         <td className="p-6">
+//                           <div className="flex flex-col gap-1.5">
+//                             <p className="text-[10px] font-bold text-slate-500 flex items-center gap-1.5">
+//                               <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+//                               <span className="w-8">Pick:</span> 
+//                               {order.pickup_date ? formatSafeDate(order.pickup_date, 'MMM dd') : 'N/A'} @ {order.pickup_time ? getPickupWindow(order.pickup_time) : 'N/A'}
+//                             </p>
+//                             <p className="text-[10px] font-bold text-slate-500 flex items-center gap-1.5">
+//                               <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+//                               <span className="w-8">Drop:</span> 
+//                               {order.expected_delivery_date ? formatSafeDate(order.expected_delivery_date, 'MMM dd') : 'TBD'} 
+//                               {order.expected_delivery_time ? ` @ ${formatTimeTo12h(order.expected_delivery_time)}` : ''}
+//                             </p>
+//                           </div>
+//                         </td>
+
+//                         {/* 4. Status */}
+//                         <td className="p-6"><StatusBadge status={order.status} /></td>
+
+//                         {/* 5. Amount (FIXED to show correct final price) */}
+//                         <td className="p-6 text-right">
+//                           <p className="font-black text-slate-900 text-lg">AED {displayPrice?.toFixed(2) || '0.00'}</p>
+//                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
+//                             {order.status === 'NEW_ORDER' ? 'Estimated' : 'Final'}
+//                           </p>
+//                         </td>
+
+//                         {/* 6. Edit Action (Hidden in report mode to keep view clean) */}
+//                         {!isReportMode && (
+//                           <td className="p-6 text-right">
+//                             <button 
+//                               onClick={() => {
+//                                 const orderCopy = JSON.parse(JSON.stringify(order));
+//                                 orderCopy.items = orderCopy.items || [];
+//                                 setEditingOrder(orderCopy);
+//                               }}
+//                               className="p-3 bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white rounded-xl transition-all shadow-sm group-hover:bg-brand-primary group-hover:text-white"
+//                             >
+//                               <Edit3 size={16} />
+//                             </button>
+//                           </td>
+//                         )}
+//                       </tr>
+//                     );
+//                   })}
+//                 </tbody>
+//               </table>
+//             </div>
+//           </div>
+
+//           {/* MOBILE VIEW */}
+//           <div className="grid grid-cols-1 gap-4 md:hidden">
+//             {filteredOrders.map((order: any) => {
+//               const displayPrice = order.status === 'NEW_ORDER' ? order.estimated_price : (order.final_price || order.estimated_price);
+              
+//               return (
+//                 <div key={order.id} className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col gap-4">
+//                   <div className="flex justify-between items-start">
+//                      <div className="flex flex-col gap-1">
+//                        <span className="font-black text-slate-400 bg-slate-50 px-3 py-1 rounded-lg text-xs w-max">{formatOrderId(order.id)}</span>
+//                        {order.hanger_needed && <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Hanger Req.</span>}
+//                      </div>
+//                      <StatusBadge status={order.status} />
+//                   </div>
+                  
+//                   <div className="bg-slate-50 p-4 rounded-2xl">
+//                     <p className="font-bold text-slate-900">{order.customer?.full_name || 'Unknown User'}</p>
+//                     <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{order.customer?.mobile || 'No Phone'}</p>
+//                     {isReportMode && (
+//                       <p className="text-[10px] font-bold text-slate-500 mt-1.5 pt-1.5 border-t border-slate-200">
+//                         {order.customer?.building_name || 'N/A'}, Flat {order.customer?.flat_number || 'N/A'}
+//                       </p>
+//                     )}
+//                   </div>
+
+//                   <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
+//                      <div>
+//                        <p className="text-[9px] font-black text-amber-500 uppercase">Pickup</p>
+//                        <p className="text-[10px] font-bold text-slate-700">{order.pickup_date ? formatSafeDate(order.pickup_date, 'MMM dd') : 'N/A'}</p>
+//                      </div>
+//                      <div>
+//                        <p className="text-[9px] font-black text-emerald-500 uppercase">Delivery</p>
+//                        <p className="text-[10px] font-bold text-slate-700">{order.expected_delivery_date ? formatSafeDate(order.expected_delivery_date, 'MMM dd') : 'TBD'}</p>
+//                      </div>
+//                   </div>
+                  
+//                   <div className="flex justify-between items-center mt-1">
+//                     <div>
+//                       <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Amount ({order.status === 'NEW_ORDER' ? 'Est.' : 'Final'})</p>
+//                       <p className="font-black text-slate-900 text-lg leading-tight mt-0.5">AED {displayPrice?.toFixed(2) || '0.00'}</p>
+//                     </div>
+//                     {!isReportMode && (
+//                       <button
+//                         onClick={() => {
+//                           const orderCopy = JSON.parse(JSON.stringify(order));
+//                           orderCopy.items = orderCopy.items || [];
+//                           setEditingOrder(orderCopy);
+//                         }}
+//                         className="px-5 py-3 bg-slate-900 text-white hover:bg-brand-primary rounded-xl transition-all shadow-sm flex items-center gap-2 text-[10px] font-black uppercase tracking-widest active:scale-95"
+//                       >
+//                         <Edit3 size={14} /> Edit
+//                       </button>
+//                     )}
+//                   </div>
+//                 </div>
+//               );
+//             })}
+//           </div>
+//         </>
+//       )}
+
+//       {/* GOD MODE EDIT MODAL (Unchanged and Safely Preserved) */}
+//       {editingOrder && (
+//         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+//           <div className="bg-white rounded-[2.5rem] w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl space-y-0">
+            
+//             <div className="sticky top-0 bg-white/80 backdrop-blur-md p-6 border-b border-slate-100 flex justify-between items-center z-10">
+//               <div>
+//                 <h3 className="text-xl font-black text-slate-900">Modify Order</h3>
+//                 <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest">{formatOrderId(editingOrder.id)}</p>
+//               </div>
+//               <button onClick={() => setEditingOrder(null)} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors">
+//                 <X size={20} className="text-slate-500" />
+//               </button>
+//             </div>
+
+//             <div className="p-6 space-y-6">
+//               <div>
+//                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Force Status</label>
+//                 <select 
+//                   className="w-full p-4 bg-slate-50 rounded-2xl font-bold text-sm outline-none border border-slate-100 mt-1 focus:ring-2 focus:ring-brand-primary transition-all"
+//                   value={editingOrder.status}
+//                   onChange={(e) => setEditingOrder({...editingOrder, status: e.target.value})}
+//                 >
+//                   <option value="NEW_ORDER">New Order (Pending)</option>
+//                   <option value="PICKED_UP">Picked Up (In Facility)</option>
+//                   <option value="DELIVERED">Delivered (Completed)</option>
+//                   <option value="CANCELLED">Cancelled</option>
+//                 </select>
+//               </div>
+
+//               <div className="bg-slate-50 p-5 rounded-[2rem] border border-slate-100 space-y-4">
+//                 <div className="flex justify-between items-center">
+//                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Order Contents</p>
+//                   <span className="text-[10px] font-bold text-amber-500 flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-md">
+//                     <AlertCircle size={12}/> Affects Pricing
+//                   </span>
+//                 </div>
+                
+//                 <div className="space-y-2">
+//                   {editingOrder.items.length === 0 ? (
+//                     <p className="text-xs font-bold text-slate-400 text-center py-4">No items currently in order.</p>
+//                   ) : (
+//                     editingOrder.items.map((i: any, index: number) => {
+//                       const displayQty = i.final_quantity || i.estimated_quantity || 0;
+//                       const itemName = i.item?.name || 'Unknown Item';
+//                       const categoryName = i.service_category?.name || 'Unknown Service';
+
+//                       return (
+//                         <div key={index} className="flex justify-between items-center bg-white p-3 rounded-2xl border border-slate-100 shadow-sm transition-all hover:border-brand-primary/20">
+//                           <div className="flex flex-col">
+//                             <span className="text-xs font-bold text-slate-700">{itemName}</span>
+//                             <span className="text-[10px] font-black text-brand-primary uppercase">{categoryName}</span>
+//                           </div>
+//                           <div className="flex items-center gap-2">
+//                             <input 
+//                               type="number" 
+//                               min="0"
+//                               value={displayQty === 0 ? '' : displayQty} 
+//                               placeholder="0"
+//                               onChange={(e) => {
+//                                 const val = parseInt(e.target.value) || 0;
+//                                 const newItems = [...editingOrder.items];
+//                                 newItems[index] = { ...newItems[index], final_quantity: val, estimated_quantity: val };
+//                                 setEditingOrder({ ...editingOrder, items: newItems });
+//                               }}
+//                               className="w-16 p-2 bg-slate-50 rounded-lg text-center font-black text-sm outline-none focus:ring-2 focus:ring-brand-primary transition-all"
+//                             />
+//                             <button 
+//                               onClick={() => {
+//                                 const newItems = editingOrder.items.filter((_: any, idx: number) => idx !== index);
+//                                 setEditingOrder({ ...editingOrder, items: newItems });
+//                               }}
+//                               className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-all"
+//                             >
+//                               <MinusCircle size={16} />
+//                             </button>
+//                           </div>
+//                         </div>
+//                       );
+//                     })
+//                   )}
+//                 </div>
+
+//                 <div className="pt-2">
+//                   <select 
+//                     className="w-full p-4 rounded-xl border-2 border-dashed border-slate-200 bg-white text-xs font-bold text-slate-500 outline-none hover:border-brand-primary/40 focus:border-brand-primary transition-colors cursor-pointer appearance-none"
+//                     onChange={(e) => {
+//                       const compositeKey = e.target.value;
+//                       if (!compositeKey) return;
+                      
+//                       const [itemIdStr, catIdStr] = compositeKey.split('_');
+//                       const selectedItemId = parseInt(itemIdStr);
+//                       const selectedCatId = parseInt(catIdStr);
+
+//                       const matrixMatch = matrixOptions.find(o => 
+//                         o.item_id === selectedItemId && o.service_category_id === selectedCatId
+//                       );
+                      
+//                       if (editingOrder.items.some((oi: any) => oi.item_id === selectedItemId && oi.service_category_id === selectedCatId)) {
+//                         toast.error(`This exact service is already in the order. Please increase its quantity instead.`);
+//                         return; 
+//                       }
+                      
+//                       const newItem = { 
+//                         item_id: selectedItemId, 
+//                         service_category_id: selectedCatId,
+//                         final_quantity: 1, 
+//                         estimated_quantity: 1, 
+//                         item: { name: matrixMatch?.item_name },
+//                         service_category: { name: matrixMatch?.service_name }
+//                       };
+                      
+//                       setEditingOrder({ ...editingOrder, items: [...editingOrder.items, newItem] });
+//                     }}
+//                     value=""
+//                   >
+//                     <option value="" disabled>+ Add service to order...</option>
+//                     {matrixOptions.map((opt: any) => (
+//                       <option key={`${opt.item_id}_${opt.service_category_id}`} value={`${opt.item_id}_${opt.service_category_id}`}>
+//                         {opt.item_name} - {opt.service_name} (AED {opt.price})
+//                       </option>
+//                     ))}
+//                   </select>
+//                 </div>
+//               </div>
+
+//               <div className="pt-4">
+//                 <button 
+//                   onClick={() => {
+//                     const payloadItems = editingOrder.items
+//                       .map((i: any) => ({ 
+//                         item_id: i.item_id, 
+//                         service_category_id: i.service_category_id,
+//                         final_quantity: i.final_quantity || i.estimated_quantity || 0 
+//                       }))
+//                       .filter((i: any) => i.final_quantity > 0); 
+
+//                     updateMutation.mutate({ 
+//                       id: editingOrder.id, 
+//                       data: { 
+//                         status: editingOrder.status,
+//                         items: payloadItems
+//                       } 
+//                     });
+//                   }}
+//                   disabled={updateMutation.isPending}
+//                   className="w-full py-5 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase tracking-widest text-xs shadow-xl shadow-slate-200 flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-70"
+//                 >
+//                   {updateMutation.isPending ? <Loader2 className="animate-spin" size={18}/> : "Save & Recalculate Price"}
+//                 </button>
+//               </div>
+
+//             </div>
+//           </div>
+//         </div>
+//       )}
+//     </div>
+//   );
+// };
+
+// // --- Helper Functions Preserved ---
+
+// // Re-using the time window formatter from OrderDetails for consistency
+// const getPickupWindow = (timeStr?: string) => {
+//   if (!timeStr) return "Pending";
+//   try {
+//     const [hourStr, minStr] = timeStr.split(':');
+//     const hour = parseInt(hourStr, 10);
+//     const min = parseInt(minStr, 10);
+    
+//     const formatAMPM = (h: number, m: number) => {
+//       const ampm = h >= 12 ? 'PM' : 'AM';
+//       const displayH = h % 12 || 12;
+//       const displayM = m < 10 ? `0${m}` : m;
+//       return `${displayH}:${displayM} ${ampm}`;
+//     };
+
+//     const startTime = formatAMPM(hour, min);
+//     const endHour = (hour + 1) % 24;
+//     const endTime = formatAMPM(endHour, min);
+
+//     return `${startTime} - ${endTime}`;
+//   } catch (e) {
+//     return timeStr; 
+//   }
+// };
+
+// const OrderManagementSkeleton = () => (
+//   <div className="space-y-8 animate-pulse p-4">
+//     <div className="h-12 w-48 bg-slate-100 rounded-xl" />
+//     <div className="space-y-4">
+//       {[1, 2, 3, 4].map(i => (
+//         <div key={i} className="h-24 bg-white border border-slate-100 rounded-[2rem]" />
+//       ))}
+//     </div>
+//   </div>
+// );
+
+// const StatusBadge = ({ status }: { status: string }) => {
+//   const styles: any = {
+//     NEW_ORDER: "bg-amber-50 text-amber-600 border-amber-100",
+//     PICKED_UP: "bg-blue-50 text-blue-600 border-blue-100",
+//     DELIVERED: "bg-emerald-50 text-emerald-600 border-emerald-100",
+//     CANCELLED: "bg-red-50 text-red-600 border-red-100",
+//   };
+//   return (
+//     <span className={cn("px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border", styles[status])}>
+//       {status?.replace('_', ' ') || 'UNKNOWN'}
+//     </span>
+//   );
+// };
+// // src/features/admin/pages/OrderManagement.tsx
+// import { useState, useMemo } from 'react';
 // import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 // import { adminService } from '../api/admin.service';
 // import { formatOrderId } from '@/utils/formatters';
@@ -378,6 +1702,23 @@ const StatusBadge = ({ status }: { status: string }) => {
 //     queryFn: adminService.getItems,
 //     enabled: !!editingOrder, 
 //   });
+
+//   // FLATTEN MASTER ITEMS FOR THE MATRIX DROPDOWN
+//   const matrixOptions = useMemo(() => {
+//     const options: any[] = [];
+//     masterItems.forEach((item: any) => {
+//       item.services?.forEach((svc: any) => {
+//         options.push({
+//           item_id: item.id,
+//           item_name: item.name,
+//           service_category_id: svc.service_category_id,
+//           service_name: svc.category?.name || "Service",
+//           price: svc.price
+//         });
+//       });
+//     });
+//     return options;
+//   }, [masterItems]);
 
 //   const updateMutation = useMutation({
 //     mutationFn: ({ id, data }: { id: number, data: any }) => adminService.adminUpdateOrder(id, data),
@@ -426,7 +1767,7 @@ const StatusBadge = ({ status }: { status: string }) => {
 //         </div>
 //       ) : (
 //         <>
-//           {/* DESKTOP VIEW: Table */}
+//           {/* DESKTOP VIEW */}
 //           <div className="hidden md:block bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
 //             <div className="overflow-x-auto">
 //               <table className="w-full text-left whitespace-nowrap">
@@ -468,7 +1809,7 @@ const StatusBadge = ({ status }: { status: string }) => {
 //             </div>
 //           </div>
 
-//           {/* MOBILE VIEW: Cards */}
+//           {/* MOBILE VIEW */}
 //           <div className="grid grid-cols-1 gap-4 md:hidden">
 //             {filteredOrders.map((order: any) => (
 //               <div key={order.id} className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col gap-4">
@@ -548,10 +1889,16 @@ const StatusBadge = ({ status }: { status: string }) => {
 //                   ) : (
 //                     editingOrder.items.map((i: any, index: number) => {
 //                       const displayQty = i.final_quantity || i.estimated_quantity || 0;
+//                       // Display Name combines Item + Category
+//                       const itemName = i.item?.name || 'Unknown Item';
+//                       const categoryName = i.service_category?.name || 'Unknown Service';
 
 //                       return (
 //                         <div key={index} className="flex justify-between items-center bg-white p-3 rounded-2xl border border-slate-100 shadow-sm transition-all hover:border-brand-primary/20">
-//                           <span className="text-xs font-bold text-slate-700">{i.item?.name || 'Unknown Service'}</span>
+//                           <div className="flex flex-col">
+//                             <span className="text-xs font-bold text-slate-700">{itemName}</span>
+//                             <span className="text-[10px] font-black text-brand-primary uppercase">{categoryName}</span>
+//                           </div>
 //                           <div className="flex items-center gap-2">
 //                             <input 
 //                               type="number" 
@@ -586,23 +1933,43 @@ const StatusBadge = ({ status }: { status: string }) => {
 //                   <select 
 //                     className="w-full p-4 rounded-xl border-2 border-dashed border-slate-200 bg-white text-xs font-bold text-slate-500 outline-none hover:border-brand-primary/40 focus:border-brand-primary transition-colors cursor-pointer appearance-none"
 //                     onChange={(e) => {
-//                       const selectedId = parseInt(e.target.value);
-//                       if (!selectedId) return;
-//                       const master = masterItems.find((mi: any) => mi.id === selectedId);
+//                       const compositeKey = e.target.value;
+//                       if (!compositeKey) return;
                       
-//                       if (editingOrder.items.some((oi: any) => oi.item_id === selectedId)) {
-//                         toast.error(`${master?.name} is already in the order. Please increase its quantity above.`);
+//                       const [itemIdStr, catIdStr] = compositeKey.split('_');
+//                       const selectedItemId = parseInt(itemIdStr);
+//                       const selectedCatId = parseInt(catIdStr);
+
+//                       // Find the exact matrix option
+//                       const matrixMatch = matrixOptions.find(o => 
+//                         o.item_id === selectedItemId && o.service_category_id === selectedCatId
+//                       );
+                      
+//                       // Check for duplicates
+//                       if (editingOrder.items.some((oi: any) => oi.item_id === selectedItemId && oi.service_category_id === selectedCatId)) {
+//                         toast.error(`This exact service is already in the order. Please increase its quantity instead.`);
 //                         return; 
 //                       }
                       
-//                       const newItem = { item_id: selectedId, final_quantity: 1, estimated_quantity: 1, item: master };
+//                       // Add new item with UI display mocks
+//                       const newItem = { 
+//                         item_id: selectedItemId, 
+//                         service_category_id: selectedCatId,
+//                         final_quantity: 1, 
+//                         estimated_quantity: 1, 
+//                         item: { name: matrixMatch?.item_name },
+//                         service_category: { name: matrixMatch?.service_name }
+//                       };
+                      
 //                       setEditingOrder({ ...editingOrder, items: [...editingOrder.items, newItem] });
 //                     }}
 //                     value=""
 //                   >
-//                     <option value="" disabled>+ Select a service to add...</option>
-//                     {masterItems.map((mi: any) => (
-//                       <option key={mi.id} value={mi.id}>{mi.name} (AED {mi.base_price})</option>
+//                     <option value="" disabled>+ Add service to order...</option>
+//                     {matrixOptions.map((opt: any) => (
+//                       <option key={`${opt.item_id}_${opt.service_category_id}`} value={`${opt.item_id}_${opt.service_category_id}`}>
+//                         {opt.item_name} - {opt.service_name} (AED {opt.price})
+//                       </option>
 //                     ))}
 //                   </select>
 //                 </div>
@@ -611,9 +1978,11 @@ const StatusBadge = ({ status }: { status: string }) => {
 //               <div className="pt-4">
 //                 <button 
 //                   onClick={() => {
+//                     // UPDATED PAYLOAD: Strictly enforce service_category_id
 //                     const payloadItems = editingOrder.items
 //                       .map((i: any) => ({ 
 //                         item_id: i.item_id, 
+//                         service_category_id: i.service_category_id,
 //                         final_quantity: i.final_quantity || i.estimated_quantity || 0 
 //                       }))
 //                       .filter((i: any) => i.final_quantity > 0); 
@@ -665,557 +2034,4 @@ const StatusBadge = ({ status }: { status: string }) => {
 //     </span>
 //   );
 // };
-// // src/features/admin/pages/OrderManagement.tsx
-// import { useState } from 'react';
-// import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-// import { adminService } from '../api/admin.service';
-// import { formatOrderId, formatSafeDate, formatTimeTo12h } from '@/utils/formatters';
-// import { Search, Loader2, Edit3, Package, X, PlusCircle, MinusCircle, AlertCircle } from 'lucide-react';
-// import { toast } from 'sonner';
-// import { cn } from '@/utils/cn';
-
-// export const OrderManagement = () => {
-//   const [search, setSearch] = useState('');
-//   const [editingOrder, setEditingOrder] = useState<any>(null); 
-//   const queryClient = useQueryClient();
-
-//   // 1. Fetch Orders safely
-//   const { data: orders = [], isLoading } = useQuery({
-//     queryKey: ['adminAllOrders'],
-//     queryFn: adminService.getAllOrders,
-//   });
-
-//   // 2. Fetch Master Items (Only fires when the modal opens to save bandwidth)
-//   const { data: masterItems = [] } = useQuery({
-//     queryKey: ['serviceItems'],
-//     queryFn: adminService.getItems,
-//     enabled: !!editingOrder, 
-//   });
-
-//   // 3. Update Mutation (Triggers backend recalculation)
-//   const updateMutation = useMutation({
-//     mutationFn: ({ id, data }: { id: number, data: any }) => adminService.adminUpdateOrder(id, data),
-//     onSuccess: () => {
-//       queryClient.invalidateQueries({ queryKey: ['adminAllOrders'] });
-//       toast.success("Order updated and financials recalculated!");
-//       setEditingOrder(null);
-//     },
-//     onError: (err: any) => {
-//       toast.error(err.response?.data?.detail || "Failed to update order. Check connection.");
-//     }
-//   });
-
-//   // Safe filtering logic
-//   const filteredOrders = orders.filter((o: any) => {
-//     const searchLower = search.toLowerCase();
-//     const customerName = o.customer?.full_name?.toLowerCase() || '';
-//     const orderIdStr = o.id?.toString() || '';
-//     return customerName.includes(searchLower) || orderIdStr.includes(searchLower);
-//   });
-
-//   if (isLoading) return <OrderManagementSkeleton />;
-
-//   return (
-//     <div className="space-y-8 pb-20 relative">
-//       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-//         <div>
-//           <h1 className="text-4xl font-black text-slate-900 tracking-tighter">Order Vault</h1>
-//           <p className="text-slate-500 font-medium">Manage all customer transactions.</p>
-//         </div>
-//         <div className="relative w-full md:w-80 group">
-//           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-primary transition-colors" size={18} />
-//           <input 
-//             type="text"
-//             placeholder="Search by ID or Customer..."
-//             value={search}
-//             onChange={(e) => setSearch(e.target.value)}
-//             className="w-full pl-12 pr-4 py-4 bg-white border border-slate-100 rounded-2xl font-bold shadow-sm focus:ring-2 focus:ring-brand-primary outline-none transition-all"
-//           />
-//         </div>
-//       </header>
-
-//       {filteredOrders.length === 0 ? (
-//         <div className="bg-white rounded-[3rem] py-24 text-center border-2 border-dashed border-slate-100 shadow-sm">
-//            <Package className="mx-auto text-slate-200 mb-4" size={56} />
-//            <p className="font-black text-slate-400 uppercase tracking-widest text-xs">No Orders Found</p>
-//         </div>
-//       ) : (
-//         <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-//           <div className="overflow-x-auto">
-//             <table className="w-full text-left whitespace-nowrap">
-//               <thead className="bg-slate-50/50 border-b border-slate-100">
-//                 <tr>
-//                   <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Order ID</th>
-//                   <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer</th>
-//                   <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-//                   <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Est. Amount</th>
-//                   <th className="p-6"></th>
-//                 </tr>
-//               </thead>
-//               <tbody className="divide-y divide-slate-50">
-//                 {filteredOrders.map((order: any) => (
-//                   <tr key={order.id} className="hover:bg-slate-50/50 transition-colors group">
-//                     <td className="p-6 font-black text-slate-400">{formatOrderId(order.id)}</td>
-//                     <td className="p-6">
-//                       <p className="font-bold text-slate-900">{order.customer?.full_name || 'Unknown User'}</p>
-//                       <p className="text-[10px] font-bold text-slate-400 uppercase">{order.customer?.mobile || 'No Phone'}</p>
-//                     </td>
-//                     <td className="p-6"><StatusBadge status={order.status} /></td>
-//                     <td className="p-6 font-black text-slate-900">AED {order.estimated_price?.toFixed(2) || '0.00'}</td>
-//                     <td className="p-6 text-right">
-//                       <button 
-//                         onClick={() => {
-//                           // DEEP COPY: Ensures editing doesn't mutate the cached React Query data directly
-//                           const orderCopy = JSON.parse(JSON.stringify(order));
-//                           // Fallback to empty array if items is undefined
-//                           orderCopy.items = orderCopy.items || [];
-//                           setEditingOrder(orderCopy);
-//                         }}
-//                         className="p-3 bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white rounded-xl transition-all shadow-sm group-hover:bg-brand-primary group-hover:text-white"
-//                       >
-//                         <Edit3 size={16} />
-//                       </button>
-//                     </td>
-//                   </tr>
-//                 ))}
-//               </tbody>
-//             </table>
-//           </div>
-//         </div>
-//       )}
-
-//       {/* GOD MODE EDIT MODAL */}
-//       {editingOrder && (
-//         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-//           <div className="bg-white rounded-[2.5rem] w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl space-y-0">
-            
-//             {/* Modal Header */}
-//             <div className="sticky top-0 bg-white/80 backdrop-blur-md p-6 border-b border-slate-100 flex justify-between items-center z-10">
-//               <div>
-//                 <h3 className="text-xl font-black text-slate-900">Modify Order</h3>
-//                 <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest">{formatOrderId(editingOrder.id)}</p>
-//               </div>
-//               <button onClick={() => setEditingOrder(null)} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors">
-//                 <X size={20} className="text-slate-500" />
-//               </button>
-//             </div>
-
-//             {/* Modal Body */}
-//             <div className="p-6 space-y-6">
-              
-//               {/* STATUS OVERRIDE */}
-//               <div>
-//                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Force Status</label>
-//                 <select 
-//                   className="w-full p-4 bg-slate-50 rounded-2xl font-bold text-sm outline-none border border-slate-100 mt-1 focus:ring-2 focus:ring-brand-primary transition-all"
-//                   value={editingOrder.status}
-//                   onChange={(e) => setEditingOrder({...editingOrder, status: e.target.value})}
-//                 >
-//                   <option value="NEW_ORDER">New Order (Pending)</option>
-//                   <option value="PICKED_UP">Picked Up (In Facility)</option>
-//                   <option value="DELIVERED">Delivered (Completed)</option>
-//                   <option value="CANCELLED">Cancelled</option>
-//                 </select>
-//               </div>
-
-//               {/* ITEM OVERRIDE SECTION */}
-//               <div className="bg-slate-50 p-5 rounded-[2rem] border border-slate-100 space-y-4">
-//                 <div className="flex justify-between items-center">
-//                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Order Contents</p>
-//                   <span className="text-[10px] font-bold text-amber-500 flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-md">
-//                     <AlertCircle size={12}/> Affects Pricing
-//                   </span>
-//                 </div>
-                
-//                 {/* List Existing Items */}
-//                 <div className="space-y-2">
-//                   {editingOrder.items.length === 0 ? (
-//                     <p className="text-xs font-bold text-slate-400 text-center py-4">No items currently in order.</p>
-//                   ) : (
-//                     editingOrder.items.map((i: any, index: number) => {
-//                       // THE FIX: Use || to catch 0 and default to estimated. If both are 0, fallback to 1.
-//                       const displayQty = i.final_quantity || i.estimated_quantity || 0;
-
-//                       return (
-//                         <div key={index} className="flex justify-between items-center bg-white p-3 rounded-2xl border border-slate-100 shadow-sm transition-all hover:border-brand-primary/20">
-//                           <span className="text-xs font-bold text-slate-700">{i.item?.name || 'Unknown Service'}</span>
-//                           <div className="flex items-center gap-2">
-//                             <input 
-//                               type="number" 
-//                               min="0"
-//                               value={displayQty === 0 ? '' : displayQty} // Better UX: don't show raw '0'
-//                               placeholder="0"
-//                               onChange={(e) => {
-//                                 const val = parseInt(e.target.value) || 0;
-//                                 const newItems = [...editingOrder.items];
-//                                 // Force sync both fields so UI doesn't glitch and backend gets correct data
-//                                 newItems[index] = { ...newItems[index], final_quantity: val, estimated_quantity: val };
-//                                 setEditingOrder({ ...editingOrder, items: newItems });
-//                               }}
-//                               className="w-16 p-2 bg-slate-50 rounded-lg text-center font-black text-sm outline-none focus:ring-2 focus:ring-brand-primary transition-all"
-//                             />
-//                             <button 
-//                               onClick={() => {
-//                                 const newItems = editingOrder.items.filter((_: any, idx: number) => idx !== index);
-//                                 setEditingOrder({ ...editingOrder, items: newItems });
-//                               }}
-//                               className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-all"
-//                             >
-//                               <MinusCircle size={16} />
-//                             </button>
-//                           </div>
-//                         </div>
-//                       );
-//                     })
-//                   )}
-//                 </div>
-
-//                 {/* Dropdown to add missing items */}
-//                 <div className="pt-2">
-//                   <select 
-//                     className="w-full p-4 rounded-xl border-2 border-dashed border-slate-200 bg-white text-xs font-bold text-slate-500 outline-none hover:border-brand-primary/40 focus:border-brand-primary transition-colors cursor-pointer appearance-none"
-//                     onChange={(e) => {
-//                       const selectedId = parseInt(e.target.value);
-//                       if (!selectedId) return;
-//                       const master = masterItems.find((mi: any) => mi.id === selectedId);
-                      
-//                       // Check if already in order
-//                       if (editingOrder.items.some((oi: any) => oi.item_id === selectedId)) {
-//                         toast.error(`${master?.name} is already in the order. Please increase its quantity above.`);
-//                         return; // Exit early
-//                       }
-                      
-//                       // Add new item with qty 1
-//                       const newItem = { item_id: selectedId, final_quantity: 1, estimated_quantity: 1, item: master };
-//                       setEditingOrder({ ...editingOrder, items: [...editingOrder.items, newItem] });
-//                     }}
-//                     value="" // Always reset to empty so onChange fires again
-//                   >
-//                     <option value="" disabled>+ Select a service to add...</option>
-//                     {masterItems.map((mi: any) => (
-//                       <option key={mi.id} value={mi.id}>{mi.name} (AED {mi.base_price})</option>
-//                     ))}
-//                   </select>
-//                 </div>
-//               </div>
-
-//               {/* SUBMIT */}
-//               <div className="pt-4">
-//                 <button 
-//                   onClick={() => {
-//                     // Final verification of payload
-//                     const payloadItems = editingOrder.items
-//                       .map((i: any) => ({ 
-//                         item_id: i.item_id, 
-//                         final_quantity: i.final_quantity || i.estimated_quantity || 0 
-//                       }))
-//                       .filter((i: any) => i.final_quantity > 0); // Don't send items with 0 qty
-
-//                     updateMutation.mutate({ 
-//                       id: editingOrder.id, 
-//                       data: { 
-//                         status: editingOrder.status,
-//                         items: payloadItems
-//                       } 
-//                     });
-//                   }}
-//                   disabled={updateMutation.isPending}
-//                   className="w-full py-5 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase tracking-widest text-xs shadow-xl shadow-slate-200 flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-70"
-//                 >
-//                   {updateMutation.isPending ? <Loader2 className="animate-spin" size={18}/> : "Save & Recalculate Price"}
-//                 </button>
-//               </div>
-
-//             </div>
-//           </div>
-//         </div>
-//       )}
-//     </div>
-//   );
-// };
-
-// // Sub-components
-// const OrderManagementSkeleton = () => (
-//   <div className="space-y-8 animate-pulse p-4">
-//     <div className="h-12 w-48 bg-slate-100 rounded-xl" />
-//     <div className="space-y-4">
-//       {[1, 2, 3, 4].map(i => (
-//         <div key={i} className="h-24 bg-white border border-slate-100 rounded-[2rem]" />
-//       ))}
-//     </div>
-//   </div>
-// );
-
-// const StatusBadge = ({ status }: { status: string }) => {
-//   const styles: any = {
-//     NEW_ORDER: "bg-amber-50 text-amber-600 border-amber-100",
-//     PICKED_UP: "bg-blue-50 text-blue-600 border-blue-100",
-//     DELIVERED: "bg-emerald-50 text-emerald-600 border-emerald-100",
-//     CANCELLED: "bg-red-50 text-red-600 border-red-100",
-//   };
-//   return (
-//     <span className={cn("px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border", styles[status])}>
-//       {status?.replace('_', ' ') || 'UNKNOWN'}
-//     </span>
-//   );
-// };
-// // src/features/admin/pages/OrderManagement.tsx
-// import { useState } from 'react';
-// import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-// import { adminService } from '../api/admin.service';
-// import { formatOrderId, formatSafeDate, formatTimeTo12h } from '@/utils/formatters';
-// import { Search, Loader2, Edit3, Package, X } from 'lucide-react';
-// import { toast } from 'sonner';
-// import { cn } from '@/utils/cn';
-
-// export const OrderManagement = () => {
-//   const [search, setSearch] = useState('');
-//   // MISSING STATE ADDED HERE
-//   const [editingOrder, setEditingOrder] = useState<any>(null); 
-//   const queryClient = useQueryClient();
-
-//   const { data: orders, isLoading } = useQuery({
-//     queryKey: ['adminAllOrders'],
-//     queryFn: adminService.getAllOrders,
-//   });
-
-//   // MISSING MUTATION ADDED HERE
-//   const updateMutation = useMutation({
-//     mutationFn: ({ id, data }: { id: number, data: any }) => adminService.adminUpdateOrder(id, data),
-//     onSuccess: () => {
-//       queryClient.invalidateQueries({ queryKey: ['adminAllOrders'] });
-//       toast.success("Order updated successfully");
-//       setEditingOrder(null);
-//     },
-//     onError: (err: any) => toast.error(err.response?.data?.detail || "Update failed")
-//   });
-
-//   const filteredOrders = orders?.filter((o: any) => 
-//     o.customer?.full_name.toLowerCase().includes(search.toLowerCase()) ||
-//     o.id.toString().includes(search)
-//   );
-
-//   if (isLoading) return <OrderManagementSkeleton />;
-
-//   return (
-//     <div className="space-y-8 pb-20 relative">
-//       <header className="flex justify-between items-end">
-//         <div>
-//           <h1 className="text-4xl font-black text-slate-900 tracking-tighter">Order Vault</h1>
-//           <p className="text-slate-500 font-medium">Manage all customer transactions.</p>
-//         </div>
-//         <div className="relative w-72">
-//           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-//           <input 
-//             type="text"
-//             placeholder="Search Orders..."
-//             value={search}
-//             onChange={(e) => setSearch(e.target.value)}
-//             className="w-full pl-12 pr-4 py-3 bg-white border border-slate-100 rounded-2xl font-bold focus:ring-2 focus:ring-brand-primary outline-none"
-//           />
-//         </div>
-//       </header>
-
-//       {filteredOrders?.length === 0 ? (
-//         <div className="bg-white rounded-[3rem] py-20 text-center border-2 border-dashed border-slate-100">
-//            <Package className="mx-auto text-slate-200 mb-4" size={48} />
-//            <p className="font-black text-slate-400 uppercase tracking-widest text-xs">No Orders Found</p>
-//         </div>
-//       ) : (
-//         <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-//           <table className="w-full text-left">
-//             <thead className="bg-slate-50/50 border-b border-slate-100">
-//               <tr>
-//                 <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Order ID</th>
-//                 <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer</th>
-//                 <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-//                 <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
-//                 <th className="p-6"></th>
-//               </tr>
-//             </thead>
-//             <tbody className="divide-y divide-slate-50">
-//               {filteredOrders?.map((order: any) => (
-//                 <tr key={order.id} className="hover:bg-slate-50/50 transition-colors">
-//                   <td className="p-6 font-black text-slate-400">{formatOrderId(order.id)}</td>
-//                   <td className="p-6">
-//                     <p className="font-bold text-slate-900">{order.customer?.full_name}</p>
-//                     <p className="text-[10px] font-bold text-slate-400 uppercase">{order.customer?.mobile}</p>
-//                   </td>
-//                   <td className="p-6"><StatusBadge status={order.status} /></td>
-//                   <td className="p-6 font-black text-slate-900">AED {order.estimated_price?.toFixed(2) || '0.00'}</td>
-//                   <td className="p-6 text-right">
-//                     {/* MISSING ONCLICK HANDLER ADDED HERE */}
-//                     <button 
-//                       onClick={() => setEditingOrder(order)}
-//                       className="p-2 hover:bg-slate-900 hover:text-white rounded-xl transition-all"
-//                     >
-//                       <Edit3 size={18} />
-//                     </button>
-//                   </td>
-//                 </tr>
-//               ))}
-//             </tbody>
-//           </table>
-//         </div>
-//       )}
-
-//       {/* MISSING EDIT MODAL ADDED HERE */}
-//       {editingOrder && (
-//         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-//           <div className="bg-white rounded-[2.5rem] w-full max-w-lg p-8 shadow-2xl border border-slate-100 space-y-6">
-//             <div className="flex justify-between items-center">
-//               <h3 className="text-xl font-black text-slate-900">Edit Status</h3>
-//               <button onClick={() => setEditingOrder(null)} className="text-slate-400 hover:text-slate-600">
-//                 <X size={20} />
-//               </button>
-//             </div>
-
-//             <div className="space-y-4">
-//               <div>
-//                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Force Order Status</label>
-//                 <select 
-//                   className="w-full p-4 bg-slate-50 rounded-2xl font-bold text-sm outline-none border border-slate-100 mt-1"
-//                   value={editingOrder.status}
-//                   onChange={(e) => setEditingOrder({...editingOrder, status: e.target.value})}
-//                 >
-//                   <option value="NEW_ORDER">New Order</option>
-//                   <option value="PICKED_UP">Picked Up</option>
-//                   <option value="DELIVERED">Delivered</option>
-//                   <option value="CANCELLED">Cancelled</option>
-//                 </select>
-//               </div>
-
-//               <button 
-//                 onClick={() => updateMutation.mutate({ id: editingOrder.id, data: { status: editingOrder.status } })}
-//                 disabled={updateMutation.isPending}
-//                 className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg flex items-center justify-center gap-2"
-//               >
-//                 {updateMutation.isPending ? <Loader2 className="animate-spin" size={16}/> : "Update Order"}
-//               </button>
-//             </div>
-//           </div>
-//         </div>
-//       )}
-//     </div>
-//   );
-// };
-
-// const OrderManagementSkeleton = () => (
-//   <div className="space-y-8 animate-pulse p-4">
-//     <div className="h-12 w-48 bg-slate-100 rounded-xl" />
-//     <div className="space-y-4">
-//       {[1, 2, 3, 4].map(i => (
-//         <div key={i} className="h-24 bg-white border border-slate-100 rounded-[2rem]" />
-//       ))}
-//     </div>
-//   </div>
-// );
-
-// const StatusBadge = ({ status }: { status: string }) => {
-//   const styles: any = {
-//     NEW_ORDER: "bg-amber-50 text-amber-600 border-amber-100",
-//     PICKED_UP: "bg-blue-50 text-blue-600 border-blue-100",
-//     DELIVERED: "bg-emerald-50 text-emerald-600 border-emerald-100",
-//     CANCELLED: "bg-red-50 text-red-600 border-red-100",
-//   };
-//   return (
-//     <span className={cn("px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border", styles[status])}>
-//       {status?.replace('_', ' ')}
-//     </span>
-//   );
-// };
-
-// // src/features/admin/pages/OrderManagement.tsx
-// import { useState } from 'react';
-// import { useQuery } from '@tanstack/react-query';
-// import { adminService } from '../api/admin.service';
-// import { formatOrderId, formatSafeDate, formatTimeTo12h } from '@/utils/formatters';
-// import { Search, Loader2, Edit3, Package } from 'lucide-react';
-// import { StatusBadge } from '@/components/ui/StatusBadge';
-
-// export const OrderManagement = () => {
-//   const [search, setSearch] = useState('');
-//   const { data: orders, isLoading, isError } = useQuery({
-//     queryKey: ['adminAllOrders'],
-//     queryFn: adminService.getAllOrders,
-//   });
-
-//   const filteredOrders = orders?.filter((o: any) => 
-//     o.customer?.full_name.toLowerCase().includes(search.toLowerCase()) ||
-//     o.id.toString().includes(search)
-//   );
-
-//   if (isLoading) return <OrderManagementSkeleton />;
-
-//   return (
-//     <div className="space-y-8 pb-20">
-//       <header className="flex justify-between items-end">
-//         <div>
-//           <h1 className="text-4xl font-black text-slate-900 tracking-tighter">Order Vault</h1>
-//           <p className="text-slate-500 font-medium">Manage all customer transactions.</p>
-//         </div>
-//         <div className="relative w-72">
-//           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-//           <input 
-//             type="text"
-//             placeholder="Search Orders..."
-//             value={search}
-//             onChange={(e) => setSearch(e.target.value)}
-//             className="w-full pl-12 pr-4 py-3 bg-white border border-slate-100 rounded-2xl font-bold focus:ring-2 focus:ring-brand-primary outline-none"
-//           />
-//         </div>
-//       </header>
-
-//       {filteredOrders?.length === 0 ? (
-//         <div className="bg-white rounded-[3rem] py-20 text-center border-2 border-dashed border-slate-100">
-//            <Package className="mx-auto text-slate-200 mb-4" size={48} />
-//            <p className="font-black text-slate-400 uppercase tracking-widest text-xs">No Orders Found</p>
-//         </div>
-//       ) : (
-//         <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-//           <table className="w-full text-left">
-//             <thead className="bg-slate-50/50 border-b border-slate-100">
-//               <tr>
-//                 <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Order ID</th>
-//                 <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer</th>
-//                 <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-//                 <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
-//                 <th className="p-6"></th>
-//               </tr>
-//             </thead>
-//             <tbody className="divide-y divide-slate-50">
-//               {filteredOrders?.map((order: any) => (
-//                 <tr key={order.id} className="hover:bg-slate-50/50 transition-colors">
-//                   <td className="p-6 font-black text-slate-400">{formatOrderId(order.id)}</td>
-//                   <td className="p-6">
-//                     <p className="font-bold text-slate-900">{order.customer?.full_name}</p>
-//                     <p className="text-[10px] font-bold text-slate-400 uppercase">{order.customer?.mobile}</p>
-//                   </td>
-//                   <td className="p-6"><StatusBadge status={order.status} /></td>
-//                   <td className="p-6 font-black text-slate-900">AED {order.estimated_price.toFixed(2)}</td>
-//                   <td className="p-6 text-right">
-//                     <button className="p-2 hover:bg-slate-900 hover:text-white rounded-xl transition-all">
-//                       <Edit3 size={18} />
-//                     </button>
-//                   </td>
-//                 </tr>
-//               ))}
-//             </tbody>
-//           </table>
-//         </div>
-//       )}
-//     </div>
-//   );
-// };
-
-// const OrderManagementSkeleton = () => (
-//   <div className="space-y-8 animate-pulse p-4">
-//     <div className="h-12 w-48 bg-slate-100 rounded-xl" />
-//     <div className="space-y-4">
-//       {[1, 2, 3, 4].map(i => (
-//         <div key={i} className="h-24 bg-white border border-slate-100 rounded-[2rem]" />
-//       ))}
-//     </div>
-//   </div>
-// );
 

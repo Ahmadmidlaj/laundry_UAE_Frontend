@@ -191,6 +191,15 @@ export const PickupQueue = () => {
                     )}
                   </div>
 
+                  {order.hanger_needed && (
+                 <div className="bg-indigo-50 border border-indigo-100 p-2 rounded-xl flex items-center gap-2 mt-2 w-max">
+                   <div className="h-6 w-6 bg-indigo-100 text-indigo-500 rounded-lg flex items-center justify-center">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v11"/><path d="M12 4a3 3 0 0 1 3-3"/><path d="M12 4a3 3 0 0 0-3-3"/><path d="M5 15h14l-7 7-7-7Z"/></svg>
+                   </div>
+                   <span className="text-[10px] font-black uppercase tracking-widest text-indigo-700">Provide Hangers</span>
+                 </div>
+              )}
+
                   <div className="space-y-3 pt-2">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Expected Delivery</p>
                     <div className="grid grid-cols-2 gap-3">

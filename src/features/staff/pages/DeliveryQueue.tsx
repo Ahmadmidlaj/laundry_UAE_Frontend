@@ -170,8 +170,25 @@ export const DeliveryQueue = () => {
                           </span>
                         </div>
                       ))}
+
+                      {order.hanger_needed && (
+                        <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-xl flex items-center gap-3 mt-4 pt-3">
+                          <div className="h-8 w-8 bg-indigo-100 text-indigo-500 rounded-lg flex items-center justify-center shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v11"/><path d="M12 4a3 3 0 0 1 3-3"/><path d="M12 4a3 3 0 0 0-3-3"/><path d="M5 15h14l-7 7-7-7Z"/></svg>
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-indigo-700 block mb-0.5">Provide Hangers</span>
+                            <span className="text-xs font-bold text-indigo-500">Customer requested hung delivery</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
+                  
+
+
+
+             
                 </div>
 
                 <div className="flex justify-between items-center px-2">

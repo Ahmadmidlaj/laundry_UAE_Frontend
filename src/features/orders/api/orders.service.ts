@@ -27,6 +27,7 @@ export interface OrderPayload {
   items: Array<{ item_id: number; service_category_id: number | null; estimated_quantity: number }>;
   notes?: string;         
   credits_to_use?: number;
+  hanger_needed?: boolean;
 }
 
 export const ordersService = {
@@ -53,6 +54,10 @@ export const ordersService = {
   // NEW: Fetch available categories (useful for the Admin config modal)
   getServiceCategories: async (): Promise<ServiceCategory[]> => {
     const response = await api.get('/services/categories'); // Assuming you add this simple GET endpoint
+    return response.data;
+  },
+  updateMyOrder: async (id: number, data: any) => {
+    const response = await api.patch(`/orders/${id}/customer`, data);
     return response.data;
   }
 };

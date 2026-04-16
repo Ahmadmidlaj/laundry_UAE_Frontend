@@ -5,7 +5,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { adminService } from '../api/admin.service';
 import { TrendingUp, Users, ShoppingBag, DollarSign, Download, Loader2, PackageX, Wallet, Receipt } from 'lucide-react';
-import { subDays, subYears, isAfter, format, parseISO } from 'date-fns';
+import { subDays, subYears, isAfter, format, parseISO, startOfDay } from 'date-fns';
 
 import {
   Chart as ChartJS,
@@ -58,9 +58,10 @@ const MetricCard = ({ title, value, isLoading, icon: Icon, prefix = "", textColo
 );
 
 export const ReportsPage = () => {
-  const [timeRange, setTimeRange] = useState<'7D' | '30D' | '1Y' | 'ALL'>('30D');
+  const [timeRange, setTimeRange] = useState<'TODAY' | '7D' | '30D' | '1Y' | 'ALL'>('30D');
 
   const daysMapping = {
+    'TODAY': 1,
     '7D': 7,
     '30D': 30,
     '1Y': 365,
@@ -98,6 +99,7 @@ export const ReportsPage = () => {
     const now = new Date();
     let cutoffDate = new Date(0); 
     
+    if (timeRange === 'TODAY') cutoffDate = startOfDay(now);
     if (timeRange === '7D') cutoffDate = subDays(now, 7);
     if (timeRange === '30D') cutoffDate = subDays(now, 30);
     if (timeRange === '1Y') cutoffDate = subYears(now, 1);
@@ -352,7 +354,7 @@ export const ReportsPage = () => {
         
         <div className="flex flex-wrap items-center gap-3">
           <div className="bg-white p-1 rounded-xl border border-slate-200 flex text-sm font-bold shadow-sm">
-            {(['7D', '30D', '1Y', 'ALL'] as const).map(range => (
+            {(['TODAY', '7D', '30D', '1Y', 'ALL'] as const).map(range => (
               <button 
                 key={range}
                 onClick={() => setTimeRange(range)}
