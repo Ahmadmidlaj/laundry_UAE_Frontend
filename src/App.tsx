@@ -28,6 +28,7 @@ import { ResetPasswordPage } from "./features/auth/pages/ResetPasswordPage";
 import { BuildingManagement } from "./features/admin/pages/BuildingManagement";
 import { ExpenseManagement } from "./features/admin/pages/ExpenseManagement";
 import { SystemSettings } from "./features/admin/pages/SystemSettings";
+import { AboutUsPage } from "./features/user/pages/AboutUsPage";
 
 
 function App() {
@@ -46,6 +47,7 @@ function App() {
           
           {/* SHARED ROUTES */}
          <Route path="/profile" element={<ProfilePage />} />
+         <Route path="/about-us" element={<AboutUsPage />} />
 
           {/* CUSTOMER ONLY ROUTES */}
           <Route element={<RoleGuard allowedRoles={["CUSTOMER"]} />}>
