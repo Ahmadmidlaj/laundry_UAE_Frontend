@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/utils/cn';
+import * as XLSX from 'xlsx';
 
 export const OrderManagement = () => {
   const [search, setSearch] = useState('');
@@ -89,30 +90,125 @@ export const OrderManagement = () => {
     });
   }, [orders, search, isReportMode, dateRange]);
 
-  const handleExportCSV = () => {
+  const handleExportExcel = () => {
     if (filteredOrders.length === 0) return toast.error("No data to export");
-    const headers = [
-      "Order Number", "Order Date", "Customer Name", "Mobile Number", 
-      "Building Name", "Flat Number", "Amount (AED)", "Status", "Hanger Needed", "Remarks"
-    ];
-    const escapeCSV = (val: any) => `"${String(val || '').replace(/"/g, '""')}"`;
-    const csvRows = filteredOrders.map((o: any) => {
-      const displayPrice = o.status === 'NEW_ORDER' ? o.estimated_price : o.final_price;
-      const orderDate = new Date(o.created_at || o.pickup_date).toLocaleDateString();
-      return [
-        formatOrderId(o.id), orderDate, o.customer?.full_name || 'Guest',
-        o.customer?.mobile || 'N/A', o.customer?.building_name || 'N/A',
-        o.customer?.flat_number || 'N/A', displayPrice?.toFixed(2) || '0.00',
-        o.status, o.hanger_needed ? "Yes" : "No", o.notes || ""
-      ].map(escapeCSV).join(',');
+
+    // --- SHEET 1: ORDERS SUMMARY (1 Row Per Order) ---
+    const summaryData = filteredOrders.map((o: any) => ({
+      "Order Number": formatOrderId(o.id),
+      "Order Date": new Date(o.created_at || o.pickup_date).toLocaleDateString(),
+      "Customer Name": o.customer?.full_name || 'Guest',
+      "Mobile Number": o.customer?.mobile || 'N/A',
+      "Building": o.customer?.building_name || 'N/A',
+      "Flat": o.customer?.flat_number || 'N/A',
+      "Total Amount (AED)": (o.status === 'NEW_ORDER' ? o.estimated_price : (o.final_price || o.estimated_price)).toFixed(2),
+      "Status": o.status,
+      "Hanger": o.hanger_needed ? "Yes" : "No",
+      "Remarks": o.notes || ""
+    }));
+
+    // --- SHEET 2: ITEMS BREAKDOWN (Detailed View) ---
+    const itemsDetailData: any[] = [];
+    filteredOrders.forEach((o: any) => {
+      if (o.items && o.items.length > 0) {
+        o.items.forEach((item: any) => {
+          itemsDetailData.push({
+            "Order ID": formatOrderId(o.id),
+            "Customer": o.customer?.full_name || 'Guest',
+            "Item Name": item.item?.name || 'Unknown',
+            "Service Type": item.service_category?.name || 'Standard',
+            "Quantity": o.status === 'NEW_ORDER' ? item.estimated_quantity : (item.final_quantity || item.estimated_quantity),
+            "Unit Price": item.unit_price.toFixed(2),
+            "Line Total": ( (o.status === 'NEW_ORDER' ? item.estimated_quantity : (item.final_quantity || item.estimated_quantity)) * item.unit_price ).toFixed(2)
+          });
+        });
+      }
     });
-    const csvContent = [headers.join(','), ...csvRows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `Orders_Report_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
-    link.click();
+
+    // --- GENERATE EXCEL FILE ---
+    const wb = XLSX.utils.book_new();
+    
+    // Create and append the Summary sheet
+    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, wsSummary, "Orders Summary");
+
+    // Create and append the Items Detail sheet
+    const wsDetails = XLSX.utils.json_to_sheet(itemsDetailData);
+    XLSX.utils.book_append_sheet(wb, wsDetails, "Items Breakdown");
+
+    // Export the file
+    XLSX.writeFile(wb, `Al_Nejoum_Report_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
+    
+    toast.success("Excel report generated with 2 sheets!");
   };
+
+  // const handleExportCSV = () => {
+  //   if (filteredOrders.length === 0) return toast.error("No data to export");
+  //   const headers = [
+  //     "Order Number", "Order Date", "Customer Name", "Mobile Number", 
+  //     "Building Name", "Flat Number",
+  //     "Item Name",     // New
+  //     "Service",       // New
+  //     "Qty",           // New
+  //     "Amount (AED)", "Status", "Hanger Needed", "Remarks"
+  //   ];
+  // const escapeCSV = (val: any) => `"${String(val || '').replace(/"/g, '""')}"`;
+
+  //   // UPDATED LOGIC: Create a row for every item in every order
+  //   const csvRows: string[] = [];
+
+  //   filteredOrders.forEach((o: any) => {
+  //     const orderDate = new Date(o.created_at || o.pickup_date).toLocaleDateString();
+  //     const displayPrice = o.status === 'NEW_ORDER' ? o.estimated_price : (o.final_price || o.estimated_price);
+
+  //     // If order has items, create a row for each item
+  //     if (o.items && o.items.length > 0) {
+  //       o.items.forEach((item: any) => {
+  //         const qty = o.status === 'NEW_ORDER' ? item.estimated_quantity : (item.final_quantity || item.estimated_quantity);
+          
+  //         const row = [
+  //           formatOrderId(o.id),
+  //           orderDate,
+  //           o.customer?.full_name || 'Guest',
+  //           o.customer?.mobile || 'N/A',
+  //           o.customer?.building_name || 'N/A',
+  //           o.customer?.flat_number || 'N/A',
+  //           item.item?.name || 'Unknown Item',              // Item Name
+  //           item.service_category?.name || 'Standard',      // Service
+  //           qty,                                            // Qty
+  //           displayPrice?.toFixed(2) || '0.00',
+  //           o.status,
+  //           o.hanger_needed ? "Yes" : "No",
+  //           o.notes || ""
+  //         ];
+  //         csvRows.push(row.map(escapeCSV).join(','));
+  //       });
+  //     } else {
+  //       // Fallback: If no items, still show the order row
+  //       const row = [
+  //         formatOrderId(o.id),
+  //         orderDate,
+  //         o.customer?.full_name || 'Guest',
+  //         o.customer?.mobile || 'N/A',
+  //         o.customer?.building_name || 'N/A',
+  //         o.customer?.flat_number || 'N/A',
+  //         "N/A", "N/A", "0", // Item, Service, Qty placeholders
+  //         displayPrice?.toFixed(2) || '0.00',
+  //         o.status,
+  //         o.hanger_needed ? "Yes" : "No",
+  //         o.notes || ""
+  //       ];
+  //       csvRows.push(row.map(escapeCSV).join(','));
+  //     }
+  //   });
+
+  //   const csvContent = [headers.join(','), ...csvRows].join('\n');
+  //   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  //   const link = document.createElement('a');
+  //   link.href = URL.createObjectURL(blob);
+  //   link.download = `Detailed_Orders_Report_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
+  //   link.click();
+  // };
 
   if (isLoading) return <OrderManagementSkeleton />;
 
@@ -167,7 +263,7 @@ export const OrderManagement = () => {
                 </div>
               </div>
             </div>
-            <button onClick={handleExportCSV} className="w-full md:w-auto px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-900 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-sm">
+            <button onClick={handleExportExcel} className="w-full md:w-auto px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-900 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-sm">
               <Download size={16} /> Export CSV
             </button>
           </div>
