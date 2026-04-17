@@ -1,6 +1,7 @@
 // src/features/orders/pages/CustomerHome.tsx
 import { Link } from "react-router-dom";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useNavigate } from "react-router-dom";
 import {
   Plus,
   Clock,
@@ -10,7 +11,7 @@ import {
   Package,
   Wallet,
   Share2,
-  Gift
+  Gift,Info
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/api/axios";
@@ -22,6 +23,7 @@ import { toast } from "sonner";
 
 export const CustomerHome = () => {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["customerStats"],
@@ -261,6 +263,48 @@ export const CustomerHome = () => {
             )}
           </div>
         </div>
+
+
+
+        
+        <div className="bg-white/80 backdrop-blur-xl p-6 rounded-[2.5rem] border border-white shadow-sm mt-8 space-y-4">
+  <h2 className="font-black uppercase text-[10px] tracking-[0.2em] text-slate-400 ml-2">
+    More Information
+  </h2>
+  
+  <button 
+    onClick={() => navigate('/about-us')}
+    className="w-full flex items-center justify-between p-4 bg-white/50 hover:bg-white rounded-2xl transition-all group border border-slate-50"
+  >
+    <div className="flex items-center gap-4">
+      <div className="p-2.5 bg-brand-primary/10 text-brand-primary rounded-xl group-hover:scale-110 transition-transform">
+        <Info size={20} />
+      </div>
+      <div className="text-left">
+        <p className="font-bold text-slate-900">About Al Nejoum</p>
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Our 20-Year Legacy & Facilities</p>
+      </div>
+    </div>
+    <ChevronRight className="text-slate-300 group-hover:text-brand-primary transition-colors" size={20} />
+  </button>
+
+  {/* Optional: Add a Support Link too */}
+  {/* <button 
+    onClick={() => window.location.href = 'mailto:alnejoumlaundry@yahoo.com'}
+    className="w-full flex items-center justify-between p-4 bg-white/50 hover:bg-white rounded-2xl transition-all group border border-slate-50"
+  >
+    <div className="flex items-center gap-4">
+      <div className="p-2.5 bg-slate-100 text-slate-500 rounded-xl group-hover:scale-110 transition-transform">
+        <Phone size={20} />
+      </div>
+      <div className="text-left">
+        <p className="font-bold text-slate-900">Contact Support</p>
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Get help with your orders</p>
+      </div>
+    </div>
+    <ChevronRight className="text-slate-300 transition-colors" size={20} />
+  </button> */}
+  </div>
       </div>
     </div>
   );
