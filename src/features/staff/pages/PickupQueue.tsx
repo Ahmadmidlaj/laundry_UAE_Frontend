@@ -21,7 +21,9 @@ export const PickupQueue = () => {
   const { data: orders, isLoading } = useQuery({
     queryKey: ['pickups'],
     queryFn: async () => (await api.get('/operations/pickup-queue')).data,
-    refetchInterval: 15000, 
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+    staleTime: 5000,
   });
 
   const { data: masterItems } = useQuery({
@@ -68,7 +70,7 @@ export const PickupQueue = () => {
     const initial: Record<string, number> = {};
     order.items.forEach((i: any) => {
       const key = `${i.item_id}_${i.service_category_id}`;
-      initial[key] = i.estimated_quantity;
+      initial[key] = i.final_quantity || i.estimated_quantity || 0;
     });
     setQuantities(initial);
     setVerifyingOrderId(order.id);

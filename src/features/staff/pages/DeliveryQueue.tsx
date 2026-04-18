@@ -22,7 +22,9 @@ export const DeliveryQueue = () => {
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['deliveryQueue'],
     queryFn: async () => (await api.get('/operations/delivery-queue')).data,
-    refetchInterval: 30000, 
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+    staleTime: 5000,
   });
 
   const filteredOrders = useMemo(() => {
